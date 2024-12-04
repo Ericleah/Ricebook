@@ -1,0 +1,96 @@
+.post {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+
+  &-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+
+    .post-user-image {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+
+    .post-user-info {
+      .post-user-name {
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .post-date {
+        font-size: 12px;
+        color: #888;
+      }
+    }
+  }
+
+  &-body {
+    .post-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .post-desc {
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .post-images {
+      position: relative;
+
+      .post-image {
+        width: 100%;
+        max-height: 400px;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+
+      .image-nav-button {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 50%;
+
+        &.prev-button {
+          left: 10px;
+        }
+
+        &.next-button {
+          right: 10px;
+        }
+      }
+    }
+  }
+
+  &-footer {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 15px;
+
+    .post-action-button {
+      background: none;
+      border: none;
+      color: #4a6fa5;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 10px;
+      border-radius: 5px;
+
+      &:hover {
+        background-color: #f0f0f0;
+      }
+    }
+  }
+}

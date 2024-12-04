@@ -1,0 +1,20 @@
+.post {
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.3s;
+
+  &:hover {
+    transform: translateY(-10px);
+  }
+
+  .card-img-top {
+    height: 300px;
+    object-fit: cover;
+  }
+
+  .user-info {
+    .rounded-circle {
+      border: 2px solid #e0e0e0;
+    }
+  }
+}

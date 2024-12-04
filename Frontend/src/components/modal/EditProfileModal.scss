@@ -1,0 +1,15 @@
+/* Customizing the size of the Bootstrap popover */
+.popover {
+    width: auto; 
+    max-width: 100%; 
+    font-size: small;  
+}
+
+.popover .popover-header {
+    font-size: 16px;  
+    background-color: #f7f7f7; 
+}
+
+.popover .popover-body {
+    padding: .5em; 
+}

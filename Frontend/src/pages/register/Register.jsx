@@ -9,7 +9,7 @@ import styled from "styled-components";
 import "./register.scss";
 import $ from 'jquery';
 import riceIcon from '../../assets/rice-university-logo.png'; 
-
+import { API_BASE_URL } from '../../config/config.js';
 
 const Card = styled.div`
   display: flex;
@@ -238,25 +238,53 @@ const Register = () => {
     checkConfirmPassword(currentValue);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!userNameError && !emailError && !phoneError && !birthdayError && !zipCodeError && !passwordError && !confirmPasswordError) {
+
+    if (
+      !userNameError &&
+      !emailError &&
+      !phoneError &&
+      !birthdayError &&
+      !zipCodeError &&
+      !passwordError &&
+      !confirmPasswordError
+    ) {
       const user = {
-        id: 11,
         username: username,
         email: email,
         phone: phone,
+        dob: birthDate,
         zipcode: zipcode,
         password: password,
-        profilePic: profilePic
       };
-  
-      dispatch(register(user)); 
-  
-      navigate('/');
-      setTimeout(() => {
-        window.location.reload();
-      }, 0);
+
+      //dispatch(register(user));
+      //navigate("/");
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/register`,
+          {
+            // Replace with your backend URL
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(user),
+          }
+        );
+        console.log("Register")
+        const data = await response.json();
+        if (response.ok) {
+          navigate("/"); // Redirect or update UI
+        } else {
+          // Handle errors
+          console.error("Registration error:", data.error);
+        }
+      } catch (error) {
+        console.error("Network error:", error);
+      }
     }
   };
 

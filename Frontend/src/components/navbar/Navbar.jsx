@@ -1,44 +1,29 @@
 import "./navbar.scss";
-import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
-import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
-import WbSunnyOutlinedIcon from "@mui/icons-material/WbSunnyOutlined";
-import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
-import NotificationsOutlinedIcon from "@mui/icons-material/NotificationsOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import { Link, useNavigate } from "react-router-dom";
 import { useContext, useState } from "react";
-import { DarkModeContext } from "../../context/darkModeContext";
-import { AuthContext } from "../../context/authContext";
 import { Dropdown } from "react-bootstrap";
-import { useSelector, useDispatch } from "react-redux";
 import { FilterTermContext } from "../../context/FilterTermContext";
-
+import styled from "styled-components";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "../../actions/authActions";
 import { selectUser } from "../../reducer/authReducer";
-
-
 
 const Navbar = () => {
   const currentUser = useSelector(selectUser);
-  const { toggle, darkMode } = useContext(DarkModeContext);
-  const navigate = useNavigate();
+
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+
   const { filterTerm, setFilterTerm } = useContext(FilterTermContext);
+  const [searchTerm, setSearchTerm] = useState("");
 
-
-  const handleProfileIconClick = () => {
-    navigate("/profile/${currentUser.id}`");
-  };
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleInputChange = (e) => {
     setSearchTerm(e.target.value);
-  };
-
-  const handleProfileClick = () => {
-    navigate("/profile");
-    setShowDropdown(false);
   };
 
   const handleSearchIconClick = () => {
@@ -50,52 +35,77 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
+    // Your logout logic here
+
+    dispatch(logout());
     navigate("/login");
   };
 
   return (
-    <div className="navbar">
-      <div className="left">
-        <Link to="/" className="brand">
-          <span className="brand-text">Ricebook</span>
-        </Link>
-        <HomeOutlinedIcon />
-        {darkMode ? (
-          <WbSunnyOutlinedIcon onClick={toggle} />
-        ) : (
-          <DarkModeOutlinedIcon onClick={toggle} />
-        )}
-        <GridViewOutlinedIcon />
-      </div>
-      <div className="search">
-        <input type="text" placeholder="Search..." value={searchTerm} onChange={handleInputChange} />
-        <SearchOutlinedIcon
-          onClick={handleSearchIconClick}
-          style={{ cursor: "pointer", color: "#938eef" }}
-        />
-      </div>
-      <div className="right">
-        <div className="profileicon">
-          <PersonOutlinedIcon onClick={handleProfileIconClick} />
+    <nav className="navbar navbar-expand-lg navbar-light bg-light sticky-top">
+      <div className="container-fluid">
+        <div className="d-flex align-items-center">
+          <Link className="navbar-brand" to="/">
+            Hello World
+          </Link>
         </div>
-        <NotificationsOutlinedIcon />
-        <EmailOutlinedIcon />
-        <Dropdown>
-          <Dropdown.Toggle variant="success" as="span" id="dropdown-profile">
-            <div className="user">
-              <img src={currentUser.profilePic} alt={currentUser.name} className="profile-pic" />
-              {currentUser.name}
-            </div>
-          </Dropdown.Toggle>
-  
-          <Dropdown.Menu>
-            <Dropdown.Item href={`/profile/${currentUser.id}`}>Profile</Dropdown.Item>
-            <Dropdown.Item onClick={handleLogout}>Log Out</Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown>
+
+        <div className="d-flex mx-auto">
+          <form className="form-inline">
+            <input
+              className="form-control mr-sm-2"
+              type="search"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={handleInputChange}
+            />
+            <SearchOutlinedIcon
+              onClick={handleSearchIconClick}
+              style={{ cursor: "pointer", color: "#938eef" }}
+            />
+          </form>
+        </div>
+
+        <div className="d-flex align-items-center">
+          <Dropdown
+            className="ms-3 profile-dropdown"
+            show={showDropdown}
+            onToggle={(isOpen) => setShowDropdown(isOpen)}
+          >
+            <Dropdown.Toggle
+              variant="link"
+              id="dropdown-basic"
+              className="btn-sm d-flex align-items-center profile-toggle"
+            >
+              <img
+                src={currentUser.avatar}
+                alt=""
+                className="rounded-cirlce profile-picture"
+              />
+              <span>{currentUser.username}</span>
+            </Dropdown.Toggle>
+
+            <Dropdown.Menu className="custom-dropdown-menu">
+              <Dropdown.Item
+                className="d-flex justify-content-center align-items-center"
+                onClick={() => navigate(`/profile/${currentUser.id}`)}
+              >
+                <SettingsOutlinedIcon style={{ marginRight: "5px" }} />
+                Profile
+              </Dropdown.Item>
+              <Dropdown.Item
+                className="d-flex justify-content-center align-items-center"
+                onClick={() => handleLogout()}
+              >
+                <LogoutOutlinedIcon style={{ marginRight: "5px" }} />
+                Logout
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
       </div>
-    </div>
+    </nav>
   );
-}
+};
 
 export default Navbar;

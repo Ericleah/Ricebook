@@ -9,8 +9,8 @@ import {
   setFollowedUsers,
 } from "../../reducer/followedUsersReducer";
 import { selectFollowedUsers } from "../../reducer/followedUsersReducer";
+import { API_BASE_URL } from "../../config/config";
 
-// Styled Components for the buttons
 const BaseButton = styled.button`
   border: none;
   border-radius: 5px;
@@ -44,97 +44,168 @@ const UnfollowButton = styled(BaseButton)`
   }
 `;
 
-const userImages = [
-  "https://images.pexels.com/photos/4881619/pexels-photo-4881619.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=1600"
-];
-
 const RightBar = () => {
   const currentUser = useSelector(selectUser);
   const [onlineFriends, setOnlineFriends] = useState([]);
   const [newFollowers, setNewFollowers] = useState([]);
   const [inputName, setInputName] = useState("");
-  const currentUserID = currentUser.id;
   const dispatch = useDispatch();
   const followedUsers = useSelector(selectFollowedUsers);
+  const [followedUsersHeadline, setfollowedUsersHeadline] = useState([]);
+  const [followedUsersObjects, setfollowedUsersObjects] = useState([]);
 
   const [message, setMessage] = useState(null);
-  const [initialAssigned, setInitialAssigned] = useState(false);
+
+  const getFollowingDetails = async (followingUsernames) => {
+    // Fetch headlines and avatars for each user
+    return Promise.all(
+      followingUsernames.map(async (username) => {
+        const [headlineResponse, avatarResponse] = await Promise.all([
+          fetch(
+            `${API_BASE_URL}/headline/${username}`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          ),
+          fetch(
+            `${API_BASE_URL}/avatar/${username}`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          ),
+        ]);
+
+        const headlineData = headlineResponse.ok
+          ? await headlineResponse.json()
+          : { headline: "No headline available" };
+        const avatarData = avatarResponse.ok
+          ? await avatarResponse.json()
+          : { avatar: "" };
+
+        return {
+          username: username,
+          headline: headlineData.headline,
+          avatar: avatarData.avatar,
+        };
+      })
+    );
+  };
 
   useEffect(() => {
-    const totalUsers = 11;
+    const fetchFollowingUsers = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/following/${currentUser.username}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
-    if (currentUserID <= totalUsers && !initialAssigned) {
-      let initialFollowedUserIds;
-      if (currentUserID === 11) {
-        initialFollowedUserIds = [0];
-      } else {
-        initialFollowedUserIds = [
-          (currentUserID % totalUsers) + 1,
-          ((currentUserID + 1) % totalUsers) + 1,
-          ((currentUserID + 2) % totalUsers) + 1,
-        ];
+        if (!response.ok) {
+          throw new Error("Failed to fetch following users.");
+        }
+
+        const data = await response.json();
+        const followingUsernames = data.following;
+
+        const usersWithDetails = await getFollowingDetails(followingUsernames);
+
+        dispatch(setFollowedUsers(usersWithDetails));
+        setfollowedUsersObjects(usersWithDetails);
+      } catch (error) {
+        console.error("Error fetching following users:", error);
+      }
+    };
+
+    if (currentUser && currentUser.username) {
+      fetchFollowingUsers();
+    }
+  }, []);
+
+  const handleUnfollow = async (userToUnfollow) => {
+    try {
+      const unfollowResponse = await fetch(
+        `${API_BASE_URL}/following/${userToUnfollow.username}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!unfollowResponse.ok) {
+        throw new Error("Failed to unfollow the user.");
       }
 
-      fetch("https://jsonplaceholder.typicode.com/users")
-        .then((response) => response.json())
-        .then((data) => {
-          const initialFollowedUsers = data.filter((user) =>
-            initialFollowedUserIds.includes(user.id)
-          );
+      const updatedUserInfo = await unfollowResponse.json();
 
-          setOnlineFriends(initialFollowedUsers.map((user) => user.id));
-          dispatch(setFollowedUsers(initialFollowedUsers));
-          setInitialAssigned(true);
-        });
-    } else {
-      setOnlineFriends(followedUsers.map((user) => user.id));
-      dispatch(setFollowedUsers(followedUsers));
+      // Update the Redux store
+      dispatch(
+        setFollowedUsers(await getFollowingDetails(updatedUserInfo.following))
+      );
+
+      // Update the local state to reflect changes without refreshing
+      setfollowedUsersObjects((prevUsers) =>
+        prevUsers.filter((user) => user.username !== userToUnfollow.username)
+      );
+
+      setOnlineFriends((prevFriends) =>
+        prevFriends.filter(
+          (friend) => friend.username !== userToUnfollow.username
+        )
+      );
+      setNewFollowers((prevFollowers) =>
+        prevFollowers.filter(
+          (follower) => follower.username !== userToUnfollow.username
+        )
+      );
+    } catch (error) {
+      console.error("Error unfollowing user:", error);
     }
-  }, [currentUserID, dispatch, followedUsers, initialAssigned]);
-
-  const handleUnfollow = (userToUnfollow) => {
-    dispatch(removeFollowedUser(userToUnfollow));
-    setOnlineFriends((prevFriends) =>
-      prevFriends.filter((friend) => friend !== userToUnfollow)
-    );
-    setNewFollowers((prevFollowers) =>
-      prevFollowers.filter((follower) => follower !== userToUnfollow)
-    );
   };
 
   const handleAddFriend = async () => {
     if (inputName.trim() !== "") {
       try {
-        const response = await fetch(
-          `https://jsonplaceholder.typicode.com/users?username=${inputName}`
+        const followResponse = await fetch(
+          `${API_BASE_URL}/following/${inputName}`,
+          {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
         );
-        const newUser = await response.json();
 
-        if (newUser && newUser.length > 0) {
-          const userWithHeadline = {
-            ...newUser[0],
-            headline: "This is a default headline for a new friend.",
-          };
-          setNewFollowers((prevFollowers) => [
-            ...prevFollowers,
-            userWithHeadline,
-          ]);
-          dispatch(addFollowedUser(userWithHeadline));
-          setInputName("");
-          setMessage(null);
-        } else {
-          setMessage("User not found.");
+        if (!followResponse.ok) {
+          throw new Error("Failed to add to following list.");
         }
+
+        const updatedUserInfo = await followResponse.json();
+
+        dispatch(
+          setFollowedUsers(await getFollowingDetails(updatedUserInfo.following))
+        );
+
+        setInputName("");
       } catch (error) {
-        setMessage("There was an error fetching the user. Please try again.");
+        setMessage("There was an error. Please try again.");
+        console.error("Error:", error);
       }
     }
   };
@@ -146,35 +217,30 @@ const RightBar = () => {
       <div className="customContainer">
         {message && <div className="alert alert-warning">{message}</div>}
         <h5 className="customTitle text-muted mb-3">Online Friends</h5>
-        {allFriends.map((userId, index) => {
-          const user = followedUsers.find((u) => u.id === userId);
-          const userImage = userImages[userId % userImages.length];
-
-          if (!user) {
-            return null;
-          }
-
-          return (
-            <div className="mb-3 border-bottom pb-3" key={userId}>
-              <div className="d-flex align-items-center">
-                <img
-                  src={userImage}
-                  alt=""
-                  className="rounded-circle mr-2"
-                  style={{ width: "50px", height: "50px", objectFit: "cover" }}
-                />
-                <div className="ml-3">
-                  <p className="mb-1 font-weight-bold" style={{ fontSize: "16px" }}>
-                    {user.username}
-                  </p>
+        {followedUsers.map((user, index) => (
+          <div className="mb-3 border-bottom pb-3" key={index}>
+            <div className="d-flex">
+              <img
+                src={user.avatar}
+                className="rounded-circle mr-2"
+                style={{ width: "40px", height: "40px" }}
+              />
+              <div>
+                <p className="mb-1" style={{ fontSize: "15px" }}>
+                  {user.username}
+                </p>
+                <p className="text-muted" style={{ fontSize: "12px" }}>
+                  {user.headline}
+                </p>
+                <div className="mt-0">
                   <UnfollowButton onClick={() => handleUnfollow(user)}>
                     Unfollow
                   </UnfollowButton>
                 </div>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
         <h5 className="customTitle text-muted mb-3 mt-4">Add New Friend</h5>
         <div className="mb-3 d-flex">
           <input
@@ -194,5 +260,4 @@ const RightBar = () => {
     </div>
   );
 };
-
 export default RightBar;

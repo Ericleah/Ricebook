@@ -1,76 +1,75 @@
+@import "../../style.scss";
+@import "~bootstrap/scss/bootstrap";
+
+// Your custom SCSS variables
+$bg: #e0e0e0; // Example background color
+
 .leftBar {
-  .container {
-    .menu {
-      .user {
+  @include themify($themes) {
+    flex: 3;
+    position: sticky;
+    top: 50px;
+    height: calc(100vh - 50px);
+    overflow: scroll;
+    background-color: themed("bg");
+    color: themed("textColor");
+
+    @include mobile{
+      display: none;
+    }
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    .container {
+      padding: 20px;
+
+      hr {
+        margin: 20px 0px;
+        border: none;
+        height: 0.5px;
+        background-color: themed("border");
+      }
+
+      .menu {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        margin-bottom: 20px;
-
-        img {
-          border-radius: 50%;
-          width: 100px;
-          height: 100px;
-          object-fit: cover;
-          margin-bottom: 10px;
-        }
+        gap: 20px;
 
         span {
-          font-size: 18px;
-          font-weight: bold;
-          margin-bottom: 10px;
+          font-size: 12px;
         }
 
-        .statusHeadline {
+        .user {
           display: flex;
-          flex-direction: column;
           align-items: center;
-          margin-top: 10px;
+          gap: 10px;
+
+          img {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+          }
 
           span {
             font-size: 14px;
-            color: #555;
-            margin-bottom: 5px;
+          }
+        }
+
+        .item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+
+          img {
+            width: 30px;
           }
 
-          input {
-            padding: 5px;
+          span {
             font-size: 14px;
-            margin-bottom: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            width: 80%;
           }
-
-          button {
-            padding: 5px 10px;
-            font-size: 12px;
-            color: white;
-            background-color: #007bff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-
-            &:hover {
-              background-color: #0056b3;
-            }
-          }
-        }
-      }
-
-      .item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-
-        img {
-          width: 30px;
-          height: 30px;
-          margin-right: 10px;
-        }
-
-        span {
-          font-size: 16px;
         }
       }
     }

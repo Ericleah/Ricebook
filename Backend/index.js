@@ -1,6 +1,6 @@
 require("dotenv").config();
 require("./db");
-const { AuthRoutes } = require("./src/auth");
+const {AuthRoutes} = require("./src/auth");
 const ArticlesRoutes = require("./src/articles");
 const ProfileRoutes = require("./src/profile");
 const FollowingRoutes = require("./src/following");
@@ -8,7 +8,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
-// const upCloud = require("./src/uploadCloudinary.js") 
+const cors = require("cors");
+
 
 const app = express();
 app.use(bodyParser.json());
@@ -24,16 +25,16 @@ app.use(
     }, 
   })
 );
+app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 
 app.get("/", (req, res) => res.send({ hello: "world" }));
-// upCloud.setup(app); 
 AuthRoutes(app);
 ArticlesRoutes(app);
 ProfileRoutes(app);
 FollowingRoutes(app);
 
 if (process.env.NODE_ENV !== "test") {
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3001;
   app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
   });

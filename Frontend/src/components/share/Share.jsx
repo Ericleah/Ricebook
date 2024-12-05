@@ -1,99 +1,152 @@
-/* istanbul ignore file */
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
+import { AuthContext } from "../../context/authContext";
+import "./share.scss";
+import { PhotoCamera } from "@mui/icons-material"; // Import the PhotoCamera icon
+import Map from "../../assets/map.png";
+import Friend from "../../assets/friend.png";
+import styled from "styled-components";
 import { useSelector, useDispatch } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
 import { addPost } from "../../actions/postsActions";
-import "./share.scss";
-import PhotoIcon from '@mui/icons-material/Photo';
+import { selectPosts } from "../../reducer/postsReducer";
+import { API_BASE_URL } from "../../config/config";
 
-const Share = () => {
-  const currentUser = useSelector(selectUser);
+// Styled Components for the buttons
+const BaseButton = styled.button`
+  width: auto;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 15px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+`;
+
+const CancelButton = styled(BaseButton)`
+  color: black;
+  background-color: #e3e0e0; // Mimicking Bootstrap btn-danger color
+  margin-right: 5px; // Add some margin to the right of the Cancel button
+
+  &:hover {
+    background-color: #dedada; // Darker shade for hover effect
+  }
+`;
+
+const PostButton = styled(BaseButton)`
+  background-color: #938eef; // Mimicking Bootstrap btn-primary color
+  color: white;
+
+  &:hover {
+    background-color: #7a75d6; // Darker shade for hover effect
+  }
+`;
+
+const Share = ({ addNewPost }) => {
   const dispatch = useDispatch();
+  const currentUser = useSelector(selectUser);
   const [inputText, setInputText] = useState("");
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null); // State for the selected image
+  const [uploadedFile, setUploadedFile] = useState(null); // State to store the uploaded file
+  const posts = useSelector(selectPosts);
+
+  const handleInputChange = (e) => {
+    setInputText(e.target.value);
+  };
 
   const clearInputText = () => {
     setInputText("");
-    setSelectedImage(null); // Reset the selected image after canceling
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
+
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result);
+        setUploadedFile(file); // Store the File object
       };
       reader.readAsDataURL(file);
-
-      // Setting the file name to the state
-      setUploadedFileName(file.name);
     }
   };
 
   const handlePostClick = () => {
-    if (inputText.trim() !== "" || selectedImage) {
-      // Ensure the post has text, cannot be image only
-      const newPost = {
-        id: Date.now(),
-        userName: currentUser.username,
-        userId: currentUser.id,
-        userImage: currentUser.profilePic,
-        body: inputText,
-        postImages: selectedImage ? [selectedImage] : [],
-        date: new Date().toLocaleString(),
-      };
+    if (inputText.trim() !== "" || uploadedFile) {
+      const formData = new FormData();
+      formData.append("text", inputText);
+      if (uploadedFile) {
+        formData.append("image", uploadedFile); // Use the stored File object
+      }
 
-      dispatch(addPost(newPost));
-      clearInputText();
+      fetch(`${API_BASE_URL}/article`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          const newPost = {
+            author: currentUser.username,
+            avatar: currentUser.avatar,
+            text: inputText,
+            image: data.articles[0].image,
+            date: new Date(data.articles[0].date).toISOString(),
+            customId: posts[0] && posts[0].customId ? posts[0].customId + 1 : 1,
+          };
+          dispatch(addPost(newPost));
+          clearInputText();
+          setSelectedImage(null);
+          setUploadedFile(null);
+        })
+        .catch((error) => {
+          console.error("Error creating new article:", error);
+        });
     }
   };
 
   return (
     <div className="share">
-      <div className="shareWrapper">
-        <div className="shareTop">
-          <img
-            className="shareProfileImg"
-            src={currentUser.profilePic}
-            alt={currentUser.username}
-          />
-          <textarea
-            className="shareInput"
+      <div className="container">
+        <div className="top">
+          <img src={currentUser.avatar} alt="" />
+          <input
+            type="text"
+            width="auto"
             placeholder={`What's on your mind, ${currentUser.username}?`}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
+            style={{ width: "400px" }} // Adjust the width as needed
           />
         </div>
-        <hr className="shareHr" />
-        {selectedImage && (
-          <div className="shareImgContainer">
-            <img className="shareImg" src={selectedImage} alt="Selected" />
-            <span className="shareCancelImg" onClick={() => setSelectedImage(null)}>X</span>
-          </div>
-        )}
-        <div className="shareBottom">
-          <div className="shareOptions">
-            <label htmlFor="file" className="shareOption">
-              <PhotoIcon style={{ marginRight: 5 }} />
-              <span className="shareOptionText">Upload Image</span>
-              <input
-                style={{ display: "none" }}
-                type="file"
-                id="file"
-                accept=".png,.jpeg,.jpg"
-                onChange={handleImageChange}
-              />
+        <hr />
+        <div className="bottom">
+          <div className="left">
+            <input
+              type="file"
+              id="file"
+              style={{ display: "none" }}
+              onChange={handleImageChange}
+            />
+            <label htmlFor="file">
+              <div className="item">
+                <PhotoCamera />
+                <span>Add Image</span>
+                {uploadedFile && <span>({uploadedFile.name})</span>}{" "}
+              </div>
             </label>
           </div>
-          <div className="shareButtons">
-            <button className="shareButton" onClick={handlePostClick}>
-              Share
-            </button>
-            <button className="shareButton cancelButton" onClick={clearInputText}>
-              Cancel
-            </button>
+          <div className="right">
+            <PostButton onClick={handlePostClick}>Post</PostButton>
+            <CancelButton onClick={clearInputText}>Cancel</CancelButton>
           </div>
         </div>
       </div>

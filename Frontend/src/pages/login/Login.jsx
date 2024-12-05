@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 import { login } from '../../actions/authActions'; 
 import profilePic from '../../assets/profile.png';
 import riceIcon from '../../assets/rice-university-logo.png';
+import { API_BASE_URL } from '../../config/config.js';
 
 // Styled Components for the buttons
 const Card = styled.div`
@@ -60,41 +61,69 @@ const userImages = [
 const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loginError, setLoginError] = useState(""); // State to store login error message
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const response = await fetch(
-      `https://jsonplaceholder.typicode.com/users?username=${username}`
-    );
-    const users = await response.json();
-    const user = users[0];
+    // Check for username and password only if the standard login button was clicked
+    if (
+      e.nativeEvent.submitter ===
+        document.getElementById("standardLoginButton") &&
+      (!username || !password)
+    ) {
+      setLoginError("Username and password are required.");
+      return;
+    }
+    try {
+      const loginResponse = await fetch(
+        `${API_BASE_URL}/login`,
+        {
+          method: "POST",
 
-    if (user && user.address.street === password) {
-      // Transform the user object
-      user.zipcode = user.address.zipcode;
-      user.password = user.address.street;
-      delete user.address;
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: username,
+            password: password,
+          }),
+          credentials: "include",
+        }
+      );
 
-      // Check if the user exists in the local JSON file
-      const localUser = users.find(u => u.username === username);
+      const loginData = await loginResponse.json();
+      if (loginResponse.ok) {
+        // Fetch avatar
+        const avatarResponse = await fetch(
+          `${API_BASE_URL}/avatar/${username}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
-      dispatch(login({
-        id: user.id,
-        username: username,
-        password: user.password,
-        zipcode: user.zipcode,
-        email: user.email,
-        phone: user.phone,
-        profilePic: localUser ? userImages[user.id % userImages.length] : profilePic,
-        // ... other attributes
-      }));
-      navigate("/"); 
-    } else {
-      setErrorMessage("Incorrect username or password");
+        let avatarUrl = null;
+        if (avatarResponse.ok) {
+          const avatarData = await avatarResponse.json();
+          avatarUrl = avatarData.avatar;
+        }
+
+        // Update Redux store with user data and avatar
+        dispatch(login({ ...loginData, avatar: avatarUrl })); // Assuming your login action can handle this data structure
+        navigate("/");
+      } else {
+        console.error("Login error:", loginData.error);
+        setLoginError(loginData.error || "Invalid login credentials");
+      }
+    } catch (error) {
+      console.error("Network error:", error);
+      setLoginError("Network error. Please try again later.");
     }
   };
 
@@ -119,7 +148,7 @@ const Login = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {errorMessage && <div className="error-message">{errorMessage}</div>}
+          {loginError && <div className="error-message">{loginError}</div>}
           <Button type="submit">Login</Button>
         </form>
         <Link to="/register">Need an account? Register here</Link>

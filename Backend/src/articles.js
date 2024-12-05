@@ -2,39 +2,38 @@ const { isLoggedIn } = require("./auth");
 const mongoose = require("mongoose");
 const { Article, Comment } = require("./model/ArticleSchema");
 const User = require("./model/UserSchema");
+const { uploadImage } = require('./uploadCloudinary');
 
-// Helper function to find author ID by username
-async function findAuthorIdByUsername(authorUsername) {
-  try {
-    const author = await User.findOne({ username: authorUsername }).exec();
-    return author ? author._id : null;
-  } catch (error) {
-    console.error("Error finding author by username:", error);
-    return null;
-  }
-}
 
-// Create a new article
+//const Article = require("./model/Article");
+//const Comment = require("./model/Comment");
+
 async function createArticle(req, res) {
   const { text } = req.body;
-  const loggedInUser = req.session.user.username;
-  const image = req.file ? req.file.path : null;
+  const loggedInUser = req.session.user.username; // Get the logged-in user from the session
+  const image = req.file ? req.file.path : null; // If using multer for file uploads
 
+  // Validate the input
   if (!text) {
-    return res.status(400).send({ error: "Text content is required for the article" });
+    return res
+      .status(400)
+      .send({ error: "Text content is required for the article" });
   }
 
   try {
+    // Create a new article instance
     const newArticle = new Article({
       author: loggedInUser,
-      text,
-      image,
-      date: new Date(),
-      comments: [],
+      text: text,
+      image: image, // Only include this if an image was uploaded
+      date: new Date(), // Server sets the current date and time
+      comments: [], // Initialize comments as an empty array
     });
 
+    // Save the new article to the database
     const savedArticle = await newArticle.save();
 
+    // Respond with the new article data
     res.status(201).json({
       articles: [
         {
@@ -53,20 +52,22 @@ async function createArticle(req, res) {
   }
 }
 
-// Get articles by ID or username
 async function getArticles(req, res) {
-  const identifier = req.params.id;
+  const identifier = req.params.id; // Can be a post id or username
   const loggedInUser = req.session.user.username;
 
   try {
     let articles;
-
     if (identifier) {
-      articles = isNaN(identifier)
-        ? await Article.find({ author: identifier }).exec()
-        : await Article.find({ customId: identifier }).exec();
+      if (!isNaN(identifier)) {
+        articles = await Article.find({ customId: identifier }).exec();
+      } else {
+        articles = await Article.find({ author: identifier }).exec();
+      }
     } else {
-      articles = await Article.find({}).exec(); // Customize this for feed logic
+      articles = await Article.find({
+        /*  feed logic here */
+      }).exec();
     }
 
     const response = articles.map((article) => ({
@@ -79,16 +80,29 @@ async function getArticles(req, res) {
 
     res.json({ articles: response });
   } catch (error) {
-    console.error("Error fetching articles:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 }
 
-// Update article or its comments
+async function findAuthorIdByUsername(authorUsername) {
+  try {
+    const author = await User.findOne({ username: authorUsername }).exec();
+    if (author) {
+      return author._id; // This is the ObjectId of the author
+    } else {
+      return null; // No author found with the given username
+    }
+  } catch (error) {
+    console.error("Error finding author by username:", error);
+    return null;
+  }
+}
+
 async function updateArticle(req, res) {
-  const { commentId, text } = req.body;
+  const commentId = parseInt(req.body.commentId); // Make sure it's an integer
+  const { text } = req.body;
   const articleId = req.params.id;
-  const loggedInUserId = req.session.user._id;
+  const loggedInUserId = req.session.user._id; // Ensure this is a MongoDB ObjectId
 
   if (!text) {
     return res.status(400).send({ error: "Text content is required" });
@@ -96,25 +110,44 @@ async function updateArticle(req, res) {
 
   try {
     const article = await Article.findOne({ customId: articleId }).exec();
+
     if (!article) {
       return res.status(404).send({ error: "Article not found" });
     }
 
+    //const authorObjectId = new mongoose.Types.ObjectId(article.author);
+    /*findAuthorIdByUsername(article.author).then((authorId) => {
+      if (authorId) {
+        //console.log("Author ObjectId:", authorId);
+        authorObjectId = authorId;
+      } else {
+        console.log("No author found with the given username.");
+      }
+    });*/
+
     const authorObjectId = await findAuthorIdByUsername(article.author);
-    if (!authorObjectId || !authorObjectId.equals(loggedInUserId)) {
+    if (!authorObjectId.equals(loggedInUserId)) {
       return res.status(403).send({ error: "Forbidden" });
     }
 
     if (commentId === undefined) {
       article.text = text;
     } else if (commentId === -1) {
-      const newComment = new Comment({ body: text, author: loggedInUserId });
+      const newComment = new Comment({
+        body: text,
+        author: loggedInUserId,
+      });
       article.comments.push(newComment);
     } else {
+      // Find the comment by customId
       const comment = article.comments.find((c) => c.customId === commentId);
       if (!comment) {
         return res.status(404).send({ error: "Comment not found" });
       }
+
+      console.log(comment.author);
+
+      //comment.author is stored as ObjectId in DB
       if (!comment.author.equals(loggedInUserId)) {
         return res.status(403).send({ error: "Forbidden" });
       }
@@ -129,7 +162,6 @@ async function updateArticle(req, res) {
   }
 }
 
-// Export routes
 module.exports = (app) => {
   app.post("/article", isLoggedIn, createArticle);
   app.get("/articles/:id?", isLoggedIn, getArticles);

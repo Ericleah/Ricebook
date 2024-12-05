@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const AutoIncrement = require("mongoose-sequence")(mongoose);
 
 const counterSchema = new mongoose.Schema({
   _id: String,
@@ -6,34 +7,46 @@ const counterSchema = new mongoose.Schema({
 });
 const Counter = mongoose.model("Counter", counterSchema);
 
+// Comment Schema
 const commentSchema = new mongoose.Schema({
   customId: { type: Number, index: true },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
   body: { type: String, required: true },
   date: { type: Date, default: Date.now },
 });
 
+// Pre-save hook for Comment Schema
 commentSchema.pre("save", async function (next) {
   if (this.isNew) {
+    // This hook should only run if the comment is a subdocument being added to an Article.
     const article = this.parent();
     if (article) {
-      const maxId = article.comments.reduce((max, comment) => Math.max(max, comment.customId), 0) || 0;
+      let maxId = 0;
+      article.comments.forEach((comment) => {
+        if (comment.customId > maxId) {
+          maxId = comment.customId;
+        }
+      });
+
+      // Set this comment's customId to the highest + 1
       this.customId = maxId + 1;
     }
   }
   next();
 });
 
+// Article Schema
 const articleSchema = new mongoose.Schema({
-  author: { type: String, required: true },
-  text: { type: String, required: true },
-  image: { type: String },
+  author: String,
+  text: {},
+  image: String,
   date: { type: Date, default: Date.now },
   comments: [commentSchema],
   customId: { type: Number, unique: true, index: true },
   created: { type: Date, default: Date.now },
 });
 
+// New pre-save hook for articleSchema using Counter
 articleSchema.pre("save", async function (next) {
   if (this.isNew) {
     const counter = await Counter.findByIdAndUpdate(
@@ -46,9 +59,11 @@ articleSchema.pre("save", async function (next) {
   next();
 });
 
+// Models
 const Article = mongoose.model("Article", articleSchema);
 const Comment = mongoose.model("Comment", commentSchema);
 
+// Export Models
 module.exports = {
   Article,
   Comment,

@@ -7,13 +7,13 @@ const userSchema = new mongoose.Schema({
     required: [true, "Username is required"],
   },
   salt: { type: String },
-  email: { type: String },
-  dob: { type: Date },
-  phone: { type: String },
-  zipcode: { type: String },
-  password: { type: String },
-  following: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
-  created: { type: Date, default: Date.now },
+  email: {},
+  dob: {},
+  phone: {},
+  zipcode: {},
+  password: {},
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }], // Assuming 'User' is the name of the model
+  created: { type: Date, defazult: Date.now },
 });
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model("user", userSchema);

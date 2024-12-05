@@ -32,7 +32,7 @@ async function login(req, res) {
 
     const match = await bcrypt.compare(password, user.password);
     if (match) {
-      req.session.user = { username: user.username, _id: user._id };
+      req.session.user = user;
 
       // // Set httpOnly cookie for the session ID
       // res.cookie("connect.sid", req.session.id, {
@@ -40,14 +40,24 @@ async function login(req, res) {
       //   secure: process.env.NODE_ENV === "production", // Use secure cookies in production
       // });
 
-      res.send({ username: user.username, result: "success" });
-    } else {
+      postLoginMiddleware(req, res, () => {
+        // After the postLoginMiddleware has been applied,
+        // you can then send back the response to the client.
+        res.send({ username: username, result: "success" });
+      });
+    }
+      else {
       res.status(401).send({ error: "Invalid password" });
     }
   } catch (error) {
     console.error("Error during authentication:", error);
     res.status(500).send({ error: "Internal server error" });
   }
+}
+
+async function postLoginMiddleware(req, res, next) {
+
+  next();
 }
 
 /**
@@ -84,6 +94,8 @@ async function register(req, res) {
       zipcode,
       password: hash,
     });
+    
+    console.log({ newProfile });
 
     await newProfile.save();
 

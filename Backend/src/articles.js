@@ -78,6 +78,7 @@ async function getArticles(req, res) {
       text: article.text,
       comments: article.comments,
       date: article.date,
+      image:article.image
     }));
 
     res.json({ articles: response });

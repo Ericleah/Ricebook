@@ -49,7 +49,7 @@ const ActionButton = styled(BaseButton)`
   }
 `;
 
-const Post = ({ post }) => {
+const Post = ({ post, fetchCurrentUserPosts }) => {
   const currentUser = useSelector(selectUser);
   const [commentOpen, setCommentOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -118,14 +118,16 @@ const Post = ({ post }) => {
         }
 
         const updatedPost = await response.json();
-
         dispatch(updatePost(updatedPost));
 
         setEditMode(false);
         setError("");
-        // Optionally, show a success notification
+
+        // Refresh articles
+        if (fetchCurrentUserPosts) {
+          fetchCurrentUserPosts();
+        }
       } else {
-        // Show a Bootstrap alert or handle it in your preferred way
         alert("You cannot edit someone else's post.");
         setEditMode(false);
       }

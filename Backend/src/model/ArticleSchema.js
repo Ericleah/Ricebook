@@ -13,6 +13,7 @@ const commentSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
   body: { type: String, required: true },
   date: { type: Date, default: Date.now },
+  avatar: {type:String}
 });
 
 // Pre-save hook for Comment Schema

@@ -1,3 +1,4 @@
+// src/components/Login.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./login.scss";
@@ -5,9 +6,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import styled from "styled-components";
 import { useDispatch } from 'react-redux';
 import { login } from '../../actions/authActions'; 
-import profilePic from '../../assets/profile.png';
 import riceIcon from '../../assets/rice-university-logo.png';
 import { API_BASE_URL } from '../../config/config.js';
+import { auth, googleProvider, signInWithPopup } from "../../firebase"; // Import Firebase auth
 
 // Styled Components for the buttons
 const Card = styled.div`
@@ -46,16 +47,43 @@ const Button = styled.button`
   }
 `;
 
+const GoogleButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #EF9088FF;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 10px;
+  margin-top: 15px;
+  width: 100%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s ease, transform 0.2s ease;
+
+  &:hover {
+    background-color: #c33d2e;
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  img {
+    height: 20px;
+    margin-right: 10px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 14px; /* Slightly smaller text */
+    padding: 8px;    /* Adjust padding */
+  }
+`;
+
 const userImages = [
-  "https://images.pexels.com/photos/4881619/pexels-photo-4881619.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=1600"
+  // ... your user images
 ];
 
 const Login = () => {
@@ -127,6 +155,40 @@ const Login = () => {
     }
   };
 
+  // Handle Google Sign-In
+  const handleGoogleSignIn = async () => {
+    try {
+      const result = await auth.signInWithPopup(googleProvider);
+      const user = result.user;
+      const token = await user.getIdToken();
+
+      // Send token to backend to receive your own JWT
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store JWT in localStorage
+        localStorage.setItem("jwtToken", data.token);
+        // Update Redux store with user data
+        dispatch(login(data)); // Adjust based on your Redux action
+        // Redirect to home page
+        navigate("/");
+      } else {
+        throw new Error(data.error || "Authentication failed");
+      }
+    } catch (error) {
+      console.error("Error during Google sign-in:", error);
+      setLoginError("Google sign-in failed. Please try again.");
+    }
+  };
+
   return (
     <div className="login-container">
       <Card>
@@ -149,8 +211,12 @@ const Login = () => {
             onChange={(e) => setPassword(e.target.value)}
           />
           {loginError && <div className="error-message">{loginError}</div>}
-          <Button type="submit">Login</Button>
+          <Button type="submit" id="standardLoginButton">Login</Button>
         </form>
+        <GoogleButton onClick={handleGoogleSignIn}>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" alt="Google Icon" />
+          Sign in with Google
+        </GoogleButton>
         <Link to="/register">Need an account? Register here</Link>
       </Card>
     </div>

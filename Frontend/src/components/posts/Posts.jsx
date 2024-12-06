@@ -110,7 +110,7 @@ const Posts = () => {
           {/* Posts mapping */}
           {sortedAndFilteredPosts.map((post) => (
             <div className="col-12 mb-5" key={post.customId}>
-              <Post post={post} />
+              <Post post={post} fetchCurrentUserPosts={fetchCurrentUserPosts}/>
             </div>
           ))}
         </div>

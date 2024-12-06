@@ -6,6 +6,8 @@ import styled from "styled-components";
 import "./EditProfileModal.scss";
 import $ from "jquery";
 import "bootstrap";
+import { current } from "@reduxjs/toolkit";
+import { API_BASE_URL } from "../../config/config";
 
 // Conditionally set the app element based on the presence of `#root`
 if (document.getElementById('root')) {
@@ -79,22 +81,56 @@ const EditProfileModal = ({ isOpen, onRequestClose, user, onUpdate }) => {
     zipcode: "",
     password: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const currentUser = user;
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        zipcode: user.zipcode,
-        password: user.password,
-      });
-    }
-    $('[data-toggle="popover-username"]').popover({
-      trigger: "manual",
-      placement: "top",
+  // Local fetchJsonData function
+  const fetchJsonData = async (url) => {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
-  }, [user]);
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} - ${response.statusText}`);
+    }
+
+    return await response.json();
+  };
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!isOpen) return;
+
+      setLoading(true);
+      try {
+        const username = currentUser.username;
+
+        const emailData = await fetchJsonData(`${API_BASE_URL}/email/${username}`);
+        const phoneData = await fetchJsonData(`${API_BASE_URL}/phone/${username}`);
+        const zipcodeData = await fetchJsonData(`${API_BASE_URL}/zipcode/${username}`);
+
+        setFormData({
+          username: username,
+          email: emailData.email || "",
+          phone: phoneData.phone || "",
+          zipcode: zipcodeData.zipcode || "",
+          password: "", // Keep password empty for security
+        });
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching profile data:", err.message);
+        setError("Failed to fetch profile data. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [isOpen, currentUser]);
 
   const handleClose = () => {
     $('[data-toggle^="popover"]').popover("hide"); // This hides all popovers

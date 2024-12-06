@@ -1,6 +1,6 @@
+// Profile.jsx
 import React, { useState, useEffect } from "react";
-
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PlaceIcon from "@mui/icons-material/Place";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import CakeIcon from "@mui/icons-material/Cake";
@@ -15,6 +15,7 @@ import { login } from "../../actions/authActions";
 import styled from "styled-components";
 import { API_BASE_URL } from "../../config/config";
 
+// Styled Components for the buttons
 const BaseButton = styled.button`
   width: auto;
   border: none;
@@ -31,9 +32,9 @@ const BaseButton = styled.button`
 
 const EditButton = styled(BaseButton)`
   color: white;
-  background-color: #938eef; // Mimicking Bootstrap btn-danger color
-  margin-right: 5px; // Add some margin to the right of the Cancel button
-
+  background-color: #938eef; // Mimicking Bootstrap btn-primary color
+  margin-right: 5px;
+  
   &:hover {
     background-color: #7a75d6; // Darker shade for hover effect
   }
@@ -50,7 +51,6 @@ const LinkButton = styled(BaseButton)`
 `;
 
 const UnlinkButton = styled(LinkButton)`
-  width: auto;
   background-color: #d36c5c; // Color for Unlink Accounting button
 
   &:hover {
@@ -60,31 +60,30 @@ const UnlinkButton = styled(LinkButton)`
 
 const Profile = () => {
   const currentUser = useSelector(selectUser);
-
   const dispatch = useDispatch();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [profilePicture, setProfilePicture] = useState(null);
-
-  // Add state variables for linking/unlinking accounting
-  const [isAccountingLinked, setIsAccountingLinked] = useState(false);
-  const [isLinkingInProgress, setIsLinkingInProgress] = useState(false);
   const navigate = useNavigate();
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [profileData, setProfileData] = useState({
     username: "",
     email: "",
     dob: "",
     phone: "",
     zipcode: "",
-    password: "",
     avatar: "",
   });
+  const [error, setError] = useState("");
+
+  // Linking/unlinking state
+  const [isAccountingLinked, setIsAccountingLinked] = useState(false);
+  const [isLinkingInProgress, setIsLinkingInProgress] = useState(false);
+  const [profilePicture, setProfilePicture] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const username = currentUser.username;
-        console.log(username);
+        console.log("Fetching profile for:", username);
 
         const fetchJsonData = async (url) => {
           const response = await fetch(url, {
@@ -96,36 +95,20 @@ const Profile = () => {
           });
 
           if (!response.ok) {
-            throw new Error(
-              `Error: ${response.status} - ${response.statusText}`
-            );
+            throw new Error(`Error: ${response.status} - ${response.statusText}`);
           }
 
           return await response.json();
         };
 
-        // Fetch user details (email, phone, etc.)
-        const emailData = await fetchJsonData(
-          //`https://yw187server-3d9494142af2.herokuapp.com/email/${username}`
-          `${API_BASE_URL}/email/${username}`
-        );
-
-        const dobData = await fetchJsonData(
-          //`https://yw187server-3d9494142af2.herokuapp.com/email/${username}`
-          `${API_BASE_URL}/dob/${username}`
-        );
-
-        const phoneData = await fetchJsonData(
-          //`https://yw187server-3d9494142af2.herokuapp.com/phone/${username}`
-          `${API_BASE_URL}/phone/${username}`
-        );
-        const zipcodeData = await fetchJsonData(
-          //`https://yw187server-3d9494142af2.herokuapp.com/zipcode/${username}`
-          `${API_BASE_URL}/zipcode/${username}`
-        );
-        const avatarData = await fetchJsonData(
-          `${API_BASE_URL}/avatar/${username}`
-        );
+        // Fetch user details
+        const [emailData, dobData, phoneData, zipcodeData, avatarData] = await Promise.all([
+          fetchJsonData(`${API_BASE_URL}/email/${username}`),
+          fetchJsonData(`${API_BASE_URL}/dob/${username}`),
+          fetchJsonData(`${API_BASE_URL}/phone/${username}`),
+          fetchJsonData(`${API_BASE_URL}/zipcode/${username}`),
+          fetchJsonData(`${API_BASE_URL}/avatar/${username}`),
+        ]);
 
         // Update state with the fetched data
         setProfileData({
@@ -138,6 +121,7 @@ const Profile = () => {
         });
       } catch (error) {
         console.error("Error fetching profile data:", error.message);
+        setError("Failed to fetch profile data.");
       }
     };
 
@@ -165,19 +149,16 @@ const Profile = () => {
       // Make API requests to update user information
       await Promise.all([
         // Update zipcode
-        fetch(
-          `${API_BASE_URL}/zipcode`,
-          {
-            method: "PUT",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              zipcode: updatedProfileData.zipcode,
-            }),
-          }
-        ),
+        fetch(`${API_BASE_URL}/zipcode`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            zipcode: updatedProfileData.zipcode,
+          }),
+        }),
 
         // Update email
         fetch(`${API_BASE_URL}/email`, {
@@ -213,10 +194,15 @@ const Profile = () => {
       // Dispatch the updated profile data to Redux
       dispatch(login(updatedUser));
 
+      setProfileData((prevData) => ({
+        ...prevData,
+        ...updatedProfileData,
+      }));
+
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error updating profile:", error);
-      // Handle error and show a notification to the user
+      setError("Failed to update profile. Please try again.");
     }
   };
 
@@ -237,7 +223,7 @@ const Profile = () => {
 
   const handleUploadProfilePicture = async (file) => {
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("avatar", file); // Correct field name
   
     console.log("Uploading file:", file); // Log file details
   
@@ -248,12 +234,13 @@ const Profile = () => {
         body: formData,
       });
   
-      console.log("Server response:", response); // Log raw response
+      console.log("Server response status:", response.status); // Log status code
+      console.log("Server response headers:", response.headers); // Log headers
   
       if (!response.ok) {
-        const errorMessage = await response.text();
+        const errorMessage = await response.json();
         console.error("Error response from server:", errorMessage); // Log server error
-        throw new Error("Failed to update avatar.");
+        throw new Error(errorMessage.error || "Failed to update avatar.");
       }
   
       const updatedData = await response.json();
@@ -271,10 +258,14 @@ const Profile = () => {
         ...prevData,
         avatar: updatedData.avatar,
       }));
+  
+      setError(""); // Clear any previous errors
     } catch (error) {
       console.error("Error during upload:", error.message);
+      setError("Failed to update avatar. Please try again.");
     }
   };
+  
   
 
   // Function to handle linking accounting
@@ -289,6 +280,7 @@ const Profile = () => {
       setIsAccountingLinked(true);
     } catch (error) {
       console.error("Error linking accounting:", error);
+      setError("Failed to link accounting. Please try again.");
     } finally {
       setIsLinkingInProgress(false);
     }
@@ -300,7 +292,7 @@ const Profile = () => {
 
     try {
       const response = await fetch(
-        "https://ricebookserveryw187-8fbcb305db50.herokuapp.com/unlinkThirdPartyUser",
+        `${API_BASE_URL}/unlinkThirdPartyUser`, // Adjust URL based on your backend
         {
           method: "DELETE",
           credentials: "include",
@@ -323,17 +315,14 @@ const Profile = () => {
       // Handle successful account deletion
       // Redirect to the login page
       //navigate("/login");
-      window.location.href =
-        "https://ricebookserveryw187-8fbcb305db50.herokuapp.com/auth/google/callback";
+      window.location.href = "https://yourdomain.com/login"; // Adjust as needed
     } catch (error) {
       console.error("Error deleting account:", error);
-      // Handle error and show a notification to the user
+      setError("Failed to unlink accounting. Please try again.");
     } finally {
       setIsLinkingInProgress(false);
     }
   };
-
-  useEffect(() => {}, [profilePicture]);
 
   return (
     <div className="profile container mt-4">
@@ -353,15 +342,12 @@ const Profile = () => {
               type="file"
               id="profile-pic-input"
               style={{ display: "none" }}
-              onChange={(e) => handleFileChange(e, handleUploadProfilePicture)}
+              onChange={handleFileChange}
               accept="image/*"
             />
-            <label
-              htmlFor="profile-pic-input"
-              className="profile-picture-label"
-            >
+            <label htmlFor="profile-pic-input" className="profile-picture-label">
               <AddAPhotoIcon
-                onClick={handleUploadProfilePicture}
+                // Removed onClick to avoid duplicate uploads
                 style={{ fontSize: 18, color: "#938eef" }}
               />
             </label>
@@ -378,8 +364,7 @@ const Profile = () => {
             <EmailOutlinedIcon /> {profileData.email}
           </p>
           <p>
-            <CakeIcon />
-            {profileData.dob}
+            <CakeIcon /> {profileData.dob}
           </p>
           <p>
             <PhoneIcon /> {profileData.phone}
@@ -417,6 +402,7 @@ const Profile = () => {
               </UnlinkButton>
             </div>
           </div>
+          {error && <div className="error-message">{error}</div>}
         </div>
       </div>
       <EditProfileModal

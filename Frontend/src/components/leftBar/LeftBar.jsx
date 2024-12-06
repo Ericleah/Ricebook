@@ -1,10 +1,15 @@
+// LeftBar.jsx
 import React, { useEffect, useState } from "react";
 import "./leftBar.scss";
-import styled from "styled-components";
+import Friends from "../../assets/1.png";
+import Groups from "../../assets/2.png";
+import Market from "../../assets/3.png";
+import Watch from "../../assets/4.png";
 import { useSelector } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
-import { API_BASE_URL } from "../../config/config";
+import styled from "styled-components";
 
+// Styled Components for the buttons
 const BaseButton = styled.button`
   border: none;
   border-radius: 5px;
@@ -27,16 +32,60 @@ const ActionButton = styled(BaseButton)`
   }
 `;
 
+const CancelButton = styled(BaseButton)`
+  color: black;
+  background-color: #e3e0e0; // Mimicking Bootstrap btn-danger color
+  margin-right: 5px; // Add some margin to the right of the Cancel button
+
+  &:hover {
+    background-color: #dedada; // Darker shade for hover effect
+  }
+`;
+
+// MenuItem Component
+const MenuItem = ({ icon, label }) => (
+  <div className="item">
+    <img src={icon} alt={label} />
+    <span>{label}</span>
+  </div>
+);
+
 const LeftBar = () => {
   const currentUser = useSelector(selectUser);
   const [isEditing, setIsEditing] = useState(false);
-  const [editableHeadline, setEditableHeadline] = useState(
-    currentUser?.headline || ""
-  );
-
+  const [editableHeadline, setEditableHeadline] = useState("");
   const [userHeadline, setUserHeadline] = useState("");
+  const [profilePic, setProfilePic] = useState("");
+  const [error, setError] = useState("");
+
+  const API_BASE_URL = "http://localhost:3001"; // Ensure this matches your backend URL
 
   useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/avatar/${currentUser.username}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user profile");
+        }
+
+        const data = await response.json();
+        setProfilePic(data.avatar || "/default-profile.png"); // Fallback to a default image
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        setProfilePic("/default-profile.png"); // Fallback to a default image
+      }
+    };
+
     const fetchUserHeadline = async () => {
       try {
         const response = await fetch(
@@ -60,10 +109,12 @@ const LeftBar = () => {
         setEditableHeadline(data.headline || "");
       } catch (error) {
         console.error("Error fetching headline:", error);
+        setUserHeadline("No headline available");
       }
     };
 
     if (currentUser && currentUser.username) {
+      fetchUserProfile();
       fetchUserHeadline();
     }
   }, [currentUser]);
@@ -78,71 +129,79 @@ const LeftBar = () => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/headline`,
-        {
-          method: "PUT",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ headline: editableHeadline }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/headline`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ headline: editableHeadline }),
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to update headline.");
+        const data = await response.json();
+        const errorMsg = data.error || "Failed to update headline.";
+        throw new Error(errorMsg);
       }
 
-      setIsEditing(false);
       const updatedData = await response.json();
 
+      setIsEditing(false);
       setEditableHeadline(updatedData.headline);
       setUserHeadline(updatedData.headline);
+      setError("");
     } catch (error) {
       console.error("Error updating headline:", error);
+      setError(error.message);
     }
   };
 
   const handleCancel = () => {
-    // Cancel logic
     setEditableHeadline(userHeadline);
     setIsEditing(false);
+    setError("");
   };
 
   return (
-    <div className="leftBar d-flex flex-column p-2 bg-light border-left">
-      <div className="customContainer">
-        <h5 className="customTitle text-muted mb-3">My Headline</h5>
-
-        {isEditing ? (
-          <>
-            <input
-              type="text"
-              value={editableHeadline}
-              onChange={handleHeadlineChange}
-              placeholder="Enter friend's name"
-              className="form-control mr-2"
-              style={{ height: "30px", borderRadius: "20px" }}
-            />
-            <div className="d-flex mt-2">
-              <ActionButton onClick={handleSave}>Save</ActionButton>
-              <ActionButton
-                onClick={handleCancel}
-                style={{ marginLeft: "10px" }}
-              >
-                Cancel
-              </ActionButton>
+    <div className="leftBar">
+      <div className="container">
+        <div className="menu">
+          {/* User Information */}
+          <div className="user">
+            <img src={profilePic} alt={currentUser.username} />
+            <span>{currentUser.username}</span>
+            <div className="statusHeadline">
+              {isEditing ? (
+                <>
+                  <input
+                    type="text"
+                    value={editableHeadline}
+                    onChange={handleHeadlineChange}
+                    placeholder="Update your status"
+                  />
+                  <div className="buttonGroup">
+                    <ActionButton onClick={handleSave}>Save</ActionButton>
+                    <CancelButton onClick={handleCancel}>Cancel</CancelButton>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span>{userHeadline}</span>
+                  <ActionButton onClick={handleEditClick}>
+                    Edit Status
+                  </ActionButton>
+                </>
+              )}
+              {error && <div className="error-message">{error}</div>}
             </div>
-          </>
-        ) : (
-          <>
-            <p className="text-muted" style={{ fontSize: "12px" }}>
-              {userHeadline}
-            </p>
-            <ActionButton onClick={handleEditClick}>Edit Headline</ActionButton>
-          </>
-        )}
+          </div>
+
+          {/* Menu Items */}
+          <MenuItem icon={Friends} label="Friends" />
+          <MenuItem icon={Groups} label="Groups" />
+          <MenuItem icon={Market} label="Market" />
+          <MenuItem icon={Watch} label="Watch" />
+        </div>
       </div>
     </div>
   );

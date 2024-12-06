@@ -4,22 +4,27 @@ const {AuthRoutes} = require("./src/auth");
 const ArticlesRoutes = require("./src/articles");
 const ProfileRoutes = require("./src/profile");
 const FollowingRoutes = require("./src/following");
+const CommentRoutes = require("./src/comment");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
 const cors = require("cors");
+const morgan = require("morgan"); // HTTP request logger
 
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
+app.use(morgan("dev")); // Log all incoming requests
+app.use(express.json()); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 // Configure session middleware
 app.use(
   session({
     secret: "rice university",
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: { httpOnly: true, 
       secure: process.env.NODE_ENV === "production",
     }, 
@@ -32,6 +37,7 @@ AuthRoutes(app);
 ArticlesRoutes(app);
 ProfileRoutes(app);
 FollowingRoutes(app);
+CommentRoutes(app);
 
 if (process.env.NODE_ENV !== "test") {
   const port = process.env.PORT || 3001;

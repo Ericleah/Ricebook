@@ -6,13 +6,14 @@ const saltRounds = 10;
 /**
  * Middleware: Check if the user is logged in by verifying session.
  */
-function isLoggedIn(req, res, next) {
-  const user = req.session.user;
-  if (!user) {
-    return res.sendStatus(401); // Unauthorized
+const isLoggedIn = (req, res, next) => {
+  if (req.session && req.session.user) { // Adjust based on your session management
+    req.user = req.session.user;
+    next();
+  } else {
+    res.status(401).send({ error: 'Unauthorized' });
   }
-  next();
-}
+};
 
 /**
  * POST /login: Authenticate user and set session.

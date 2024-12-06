@@ -1,15 +1,13 @@
-import React, { useContext, useState } from "react";
-import { AuthContext } from "../../context/authContext";
-import "./share.scss";
-import { PhotoCamera } from "@mui/icons-material"; // Import the PhotoCamera icon
-import Map from "../../assets/map.png";
-import Friend from "../../assets/friend.png";
-import styled from "styled-components";
+// Share.jsx
+import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
 import { addPost } from "../../actions/postsActions";
 import { selectPosts } from "../../reducer/postsReducer";
 import { API_BASE_URL } from "../../config/config";
+import styled from "styled-components";
+import { PhotoCamera } from "@mui/icons-material"; // Import the PhotoCamera icon
+import "./share.scss";
 
 // Styled Components for the buttons
 const BaseButton = styled.button`
@@ -45,13 +43,16 @@ const PostButton = styled(BaseButton)`
   }
 `;
 
-const Share = ({ addNewPost }) => {
+const Share = () => {
   const dispatch = useDispatch();
   const currentUser = useSelector(selectUser);
+  const posts = useSelector(selectPosts);
+
   const [inputText, setInputText] = useState("");
   const [selectedImage, setSelectedImage] = useState(null); // State for the selected image
   const [uploadedFile, setUploadedFile] = useState(null); // State to store the uploaded file
-  const posts = useSelector(selectPosts);
+  const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleInputChange = (e) => {
     setInputText(e.target.value);
@@ -59,12 +60,28 @@ const Share = ({ addNewPost }) => {
 
   const clearInputText = () => {
     setInputText("");
+    setSelectedImage(null);
+    setUploadedFile(null);
+    setError("");
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
 
     if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Invalid file type. Only JPEG and PNG are allowed.');
+        return;
+      }
+
+      // Validate file size (e.g., max 5MB)
+      if (file.size > 5 * 1024 * 1024) { // 5 MB
+        setError('File size exceeds 5 MB.');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result);
@@ -75,42 +92,55 @@ const Share = ({ addNewPost }) => {
   };
 
   const handlePostClick = () => {
-    if (inputText.trim() !== "" || uploadedFile) {
-      const formData = new FormData();
-      formData.append("text", inputText);
-      if (uploadedFile) {
-        formData.append("image", uploadedFile); // Use the stored File object
-      }
-
-      fetch(`${API_BASE_URL}/article`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error("Network response was not ok");
-          }
-          return response.json();
-        })
-        .then((data) => {
-          const newPost = {
-            author: currentUser.username,
-            avatar: currentUser.avatar,
-            text: inputText,
-            image: data.articles[0].image,
-            date: new Date(data.articles[0].date).toISOString(),
-            customId: posts[0] && posts[0].customId ? posts[0].customId + 1 : 1,
-          };
-          dispatch(addPost(newPost));
-          clearInputText();
-          setSelectedImage(null);
-          setUploadedFile(null);
-        })
-        .catch((error) => {
-          console.error("Error creating new article:", error);
-        });
+    if (inputText.trim() === "" && !uploadedFile) {
+      setError("Please enter some text or upload an image.");
+      return;
     }
+
+    const formData = new FormData();
+    formData.append("text", inputText);
+    console.log("text", inputText);
+    if (uploadedFile) {
+      formData.append("image", uploadedFile); // Use the stored File object
+    }
+
+    setIsUploading(true); // Start uploading
+
+    fetch(`${API_BASE_URL}/article`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          // Attempt to extract error message from response
+          return response.json().then((data) => {
+            const errorMsg = data.error || "Failed to create article.";
+            throw new Error(errorMsg);
+          });
+        }
+        return response.json();
+      })
+      .then((data) => {
+        const savedArticle = data.articles[0];
+        const newPost = {
+          author: savedArticle.author,
+          avatar: currentUser.avatar,
+          text: savedArticle.text,
+          image: savedArticle.image,
+          date: new Date(savedArticle.date).toISOString(),
+          customId: savedArticle.customId,
+        };
+        dispatch(addPost(newPost));
+        clearInputText();
+      })
+      .catch((error) => {
+        console.error("Error creating new article:", error);
+        setError(error.message);
+      })
+      .finally(() => {
+        setIsUploading(false); // End uploading
+      });
   };
 
   return (
@@ -120,7 +150,6 @@ const Share = ({ addNewPost }) => {
           <img src={currentUser.avatar} alt="" />
           <input
             type="text"
-            width="auto"
             placeholder={`What's on your mind, ${currentUser.username}?`}
             value={inputText}
             onChange={handleInputChange}
@@ -135,20 +164,31 @@ const Share = ({ addNewPost }) => {
               id="file"
               style={{ display: "none" }}
               onChange={handleImageChange}
+              accept="image/*"
             />
             <label htmlFor="file">
               <div className="item">
                 <PhotoCamera />
                 <span>Add Image</span>
-                {uploadedFile && <span>({uploadedFile.name})</span>}{" "}
+                {uploadedFile && <span> ({uploadedFile.name})</span>}
               </div>
             </label>
           </div>
           <div className="right">
-            <PostButton onClick={handlePostClick}>Post</PostButton>
-            <CancelButton onClick={clearInputText}>Cancel</CancelButton>
+            <PostButton onClick={handlePostClick} disabled={isUploading}>
+              {isUploading ? "Posting..." : "Post"}
+            </PostButton>
+            <CancelButton onClick={clearInputText} disabled={isUploading}>
+              Cancel
+            </CancelButton>
           </div>
         </div>
+        {selectedImage && (
+          <div className="image-preview">
+            <img src={selectedImage} alt="Preview" className="preview-img" />
+          </div>
+        )}
+        {error && <div className="error-message">{error}</div>}
       </div>
     </div>
   );

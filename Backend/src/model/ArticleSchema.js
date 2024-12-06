@@ -38,13 +38,14 @@ commentSchema.pre("save", async function (next) {
 // Article Schema
 const articleSchema = new mongoose.Schema({
   author: String,
-  text: {},
+  text: { type: String, required: true }, // Changed from {} to String
   image: String,
   date: { type: Date, default: Date.now },
   comments: [commentSchema],
   customId: { type: Number, unique: true, index: true },
   created: { type: Date, default: Date.now },
 });
+
 
 // New pre-save hook for articleSchema using Counter
 articleSchema.pre("save", async function (next) {

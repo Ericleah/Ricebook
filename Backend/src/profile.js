@@ -3,7 +3,7 @@ const User = require("./model/UserSchema");
 const { isLoggedIn } = require("./auth");
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
-const { uploadImage } = require('./uploadCloudinary');
+const { uploadImage, uploadAvatar } = require('./uploadCloudinary');
 
 // Function to get a user's headline
 async function getHeadline(req, res) {
@@ -197,40 +197,39 @@ async function getAvatar(req, res) {
   }
 }
 
-async function updateAvatar(req, res) {
-  const user = req.session.user;
-  const { avatar } = req.body; // The new avatar URL sent in the request body
-
-  // Check if an avatar URL is provided
-  if (!avatar) {
-    console.log("Avatar URL is required");
-    return res.status(400).send({ error: "Avatar URL is required" });
-  }
-
+const putAvatar = async (req, res) => {
+  console.log("Received PUT /avatar request");
   try {
-    // Update the user's avatar in the database
-    const updatedProfile = await Profile.findOneAndUpdate(
-      { user_id: user._id }, // Use the User's _id to identify the profile to update
-      { $set: { avatar: avatar } },
-      { new: true } // Return the updated document
-    ).exec();
+    const userId = req.user._id;
+    console.log("Authenticated User ID:", userId);
 
-    // If the profile was not found, send a 404 response
+    if (!req.file) {
+      console.error("No file received");
+      return res.status(400).send({ error: "Avatar file is required" });
+    }
+
+    const avatarUrl = req.file.path;
+    console.log("Uploaded Avatar URL:", avatarUrl);
+
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { user_id: userId },
+      { avatar: avatarUrl },
+      { new: true }
+    );
+
     if (!updatedProfile) {
+      console.error("Profile not found for user:", userId);
       return res.status(404).send({ error: "Profile not found" });
     }
 
-    // Update the session with the new avatar
-    req.session.user.avatar = avatar;
-
-    // Send back the updated avatar URL
-    console.log({ username: user.username, avatar: avatar });
-    res.status(200).send({ username: user.username, avatar: avatar });
+    console.log("User avatar updated successfully:", updatedProfile.avatar);
+    res.status(200).send({ avatar: updatedProfile.avatar });
   } catch (error) {
     console.error("Error updating avatar:", error);
-    res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Failed to update avatar." });
   }
-}
+};
+
 
 const mongoose = require("mongoose");
 
@@ -333,7 +332,7 @@ module.exports = (app) => {
   app.get("/dob/:user?", isLoggedIn, getDob);
 
   app.get("/avatar/:user?", isLoggedIn, getAvatar);
-  app.put("/avatar", isLoggedIn,uploadImage('avatar'), updateAvatar);
+  app.put("/avatar", isLoggedIn, uploadAvatar, putAvatar);
 
   app.put("/password", isLoggedIn, changePassword);
 

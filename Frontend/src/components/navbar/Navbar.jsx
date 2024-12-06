@@ -10,6 +10,8 @@ import styled from "styled-components";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../../actions/authActions";
 import { selectUser } from "../../reducer/authReducer";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 
 const Navbar = () => {
   const currentUser = useSelector(selectUser);
@@ -46,7 +48,7 @@ const Navbar = () => {
       <div className="container-fluid">
         <div className="d-flex align-items-center">
           <Link className="navbar-brand" to="/">
-            Hello World
+            Ricebook
           </Link>
         </div>
 

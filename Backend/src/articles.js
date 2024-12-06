@@ -9,31 +9,26 @@ const { uploadImage } = require('./uploadCloudinary');
 //const Comment = require("./model/Comment");
 
 async function createArticle(req, res) {
-  const { text } = req.body;
-  const loggedInUser = req.session.user.username; // Get the logged-in user from the session
-  const image = req.file ? req.file.path : null; // If using multer for file uploads
+  const {text} = req.body;
+  const loggedInUser = req.session.user.username;
+  const image = req.file ? req.file.path : null;
 
   // Validate the input
   if (!text) {
-    return res
-      .status(400)
-      .send({ error: "Text content is required for the article" });
+    return res.status(400).send({ error: "Text content is required for the article" });
   }
 
   try {
-    // Create a new article instance
     const newArticle = new Article({
       author: loggedInUser,
       text: text,
-      image: image, // Only include this if an image was uploaded
-      date: new Date(), // Server sets the current date and time
-      comments: [], // Initialize comments as an empty array
+      image: image,
+      date: new Date(),
+      comments: [],
     });
 
-    // Save the new article to the database
     const savedArticle = await newArticle.save();
 
-    // Respond with the new article data
     res.status(201).json({
       articles: [
         {
@@ -48,9 +43,16 @@ async function createArticle(req, res) {
     });
   } catch (error) {
     console.error("Error creating new article:", error);
+
+    // Handle specific error types
+    if (error.name === 'ValidationError') {
+      return res.status(400).send({ error: error.message });
+    }
+
     res.status(500).send({ error: "Internal server error" });
   }
 }
+
 
 async function getArticles(req, res) {
   const identifier = req.params.id; // Can be a post id or username
@@ -99,7 +101,7 @@ async function findAuthorIdByUsername(authorUsername) {
 }
 
 async function updateArticle(req, res) {
-  const commentId = parseInt(req.body.commentId); // Make sure it's an integer
+  const commentId = req.body.commentId !== undefined ? parseInt(req.body.commentId) : undefined;
   const { text } = req.body;
   const articleId = req.params.id;
   const loggedInUserId = req.session.user._id; // Ensure this is a MongoDB ObjectId
@@ -115,39 +117,34 @@ async function updateArticle(req, res) {
       return res.status(404).send({ error: "Article not found" });
     }
 
-    //const authorObjectId = new mongoose.Types.ObjectId(article.author);
-    /*findAuthorIdByUsername(article.author).then((authorId) => {
-      if (authorId) {
-        //console.log("Author ObjectId:", authorId);
-        authorObjectId = authorId;
-      } else {
-        console.log("No author found with the given username.");
-      }
-    });*/
-
+    // Find the author's ObjectId based on username
     const authorObjectId = await findAuthorIdByUsername(article.author);
+    if (!authorObjectId) {
+      return res.status(400).send({ error: "Author not found" });
+    }
+
     if (!authorObjectId.equals(loggedInUserId)) {
       return res.status(403).send({ error: "Forbidden" });
     }
 
     if (commentId === undefined) {
+      // Update article text
       article.text = text;
     } else if (commentId === -1) {
+      // Add a new comment
       const newComment = new Comment({
         body: text,
         author: loggedInUserId,
       });
       article.comments.push(newComment);
     } else {
-      // Find the comment by customId
+      // Edit an existing comment
       const comment = article.comments.find((c) => c.customId === commentId);
       if (!comment) {
         return res.status(404).send({ error: "Comment not found" });
       }
 
-      console.log(comment.author);
-
-      //comment.author is stored as ObjectId in DB
+      // Check if the current user is the author of the comment
       if (!comment.author.equals(loggedInUserId)) {
         return res.status(403).send({ error: "Forbidden" });
       }
@@ -162,8 +159,9 @@ async function updateArticle(req, res) {
   }
 }
 
+
 module.exports = (app) => {
-  app.post("/article", isLoggedIn, createArticle);
+  app.post("/article", isLoggedIn, uploadImage('image'), createArticle);
   app.get("/articles/:id?", isLoggedIn, getArticles);
   app.put("/articles/:id", isLoggedIn, updateArticle);
 };

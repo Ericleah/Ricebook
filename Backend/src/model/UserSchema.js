@@ -14,6 +14,11 @@ const userSchema = new mongoose.Schema({
   password: {},
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }], // Assuming 'User' is the name of the model
   created: { type: Date, defazult: Date.now },
+  avatar: {
+    type: String,
+    default:
+      "https://upload.wikimedia.org/wikipedia/en/thumb/4/4e/DWLeebron.jpg/220px-DWLeebron.jpg",
+  },
 });
 
 module.exports = mongoose.model("user", userSchema);

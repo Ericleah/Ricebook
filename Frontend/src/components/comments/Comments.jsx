@@ -1,3 +1,4 @@
+// Comments.jsx
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import "./comments.scss";
@@ -58,9 +59,28 @@ const Comments = ({ articleId }) => {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editedCommentBody, setEditedCommentBody] = useState("");
   const posts = useSelector(selectPosts);
+  const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Initialize toast notifications (if using react-toastify)
+  useEffect(() => {
+    // Initialize if necessary
+  }, []);
+
+  // Log the received articleId
+  useEffect(() => {
+    console.log("Received articleId:", articleId);
+    if (articleId === undefined) {
+      setError("Invalid article ID. Unable to load comments.");
+    }
+  }, [articleId]);
 
   // Fetch comments when the component mounts
   useEffect(() => {
+    if (articleId === undefined) {
+      console.error("Cannot fetch comments: articleId is undefined.");
+      return;
+    }
     // Extract comments for the current article from the posts state
     const currentPost = posts.find((post) => post.customId === articleId);
     if (currentPost && currentPost.comments) {
@@ -69,44 +89,65 @@ const Comments = ({ articleId }) => {
   }, [articleId, posts, dispatch]);
 
   const handleSendClick = async () => {
+    if (articleId === undefined) {
+      console.error("Cannot send comment: articleId is undefined.");
+      setError("Unable to send comment. Please try again.");
+      return;
+    }
+
     if (inputValue.trim() !== "") {
       const newComment = {
-        //id: commentId,
+        // id: commentId, // Comment ID will be handled by backend
         author: currentUser.username,
         body: inputValue,
         avatar: currentUser.avatar,
       };
 
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/articles/${articleId}`,
-          {
-            method: "PUT",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              comment: newComment,
-              articleId: articleId,
-            }),
-          }
-        );
+        setIsUploading(true);
+        const response = await fetch(`${API_BASE_URL}/articles/${articleId}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            // Adjust the payload to match backend expectations
+            text: newComment.body, // Assuming you're adding a comment's body as text
+            commentId: -1, // Use -1 to indicate a new comment
+          }),
+        });
+
+        console.log("Server response status:", response.status);
+        console.log("Server response headers:", response.headers);
 
         if (!response.ok) {
-          throw new Error("Failed to update the comment.");
+          let errorMessage = "Failed to update the comment.";
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (parseError) {
+            console.error("Error parsing error response:", parseError);
+          }
+          console.error("Error response from server:", errorMessage);
+          throw new Error(errorMessage);
         }
 
-        const updatedComment = await response.json();
+        const updatedArticle = await response.json();
 
-        const retriveLastComment =
-          updatedComment.comments[updatedComment.comments.length - 1];
+        const retrievedLastComment =
+          updatedArticle.comments[updatedArticle.comments.length - 1];
 
-        dispatch(addComment(articleId, retriveLastComment));
+        dispatch(addComment(articleId, retrievedLastComment));
 
         setInputValue("");
+        setError("");
+        // Optionally, show a success notification
       } catch (error) {
         console.error("Error updating comment:", error);
+        setError("Failed to update comment. Please try again.");
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -152,44 +193,44 @@ const Comments = ({ articleId }) => {
 
     if (authorUsername === currentUser.username) {
       if (editedCommentBody.trim() !== "") {
-        const updatedComment = {
-          customId: commentId,
-          author: currentUser.username,
-          body: editedCommentBody,
-          avatar: currentUser.avatar,
-        };
         try {
-          const response = await fetch(
-            `${API_BASE_URL}/articles/${articleId}`,
-            {
-              method: "PUT",
-              credentials: "include",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                comment: updatedComment,
-                articleId: articleId,
-              }),
-            }
-          );
+          setIsUploading(true);
+          const response = await fetch(`${API_BASE_URL}/articles/${articleId}`, {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text: editedCommentBody,
+              commentId: commentId, // Pass the commentId to indicate editing
+            }),
+          });
 
           if (!response.ok) {
-            throw new Error("Failed to update the comment.");
+            let errorMessage = "Failed to update the comment.";
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorMessage;
+            } catch (parseError) {
+              console.error("Error parsing error response:", parseError);
+            }
+            console.error("Error response from server:", errorMessage);
+            throw new Error(errorMessage);
           }
 
-          const updatedComments = await response.json();
+          const updatedArticle = await response.json();
 
-          dispatch(
-            updateComment(articleId, commentId, updatedComments.comments)
-          );
-
-          //dispatch(setComments(articleId, updatedComments));
+          dispatch(updateComment(articleId, commentId, updatedArticle.comments));
 
           setEditingCommentId(null);
           setEditedCommentBody("");
+          // Optionally, show a success notification
         } catch (error) {
           console.error("Error updating comment:", error);
+          setError("Failed to update comment. Please try again.");
+        } finally {
+          setIsUploading(false);
         }
       }
     } else {
@@ -205,14 +246,17 @@ const Comments = ({ articleId }) => {
         <img src={currentUser.avatar} alt="" />
         <input
           type="text"
-          placeholder="write a comment"
+          placeholder="Write a comment"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="form-control mr-2"
           style={{ height: "30px", borderRadius: "20px" }}
         />
-        <CommentButton onClick={handleSendClick}>Comment</CommentButton>
+        <CommentButton onClick={handleSendClick} disabled={isUploading}>
+          {isUploading ? "Sending..." : "Comment"}
+        </CommentButton>
       </div>
+      {error && <div className="error-message">{error}</div>}
       {comments.map((comment) => (
         <div key={comment.customId} className="comment">
           <img src={comment.avatar} alt="" />

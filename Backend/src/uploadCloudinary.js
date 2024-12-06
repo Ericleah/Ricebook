@@ -3,7 +3,8 @@
 ////////////////////////////////
 const multer = require('multer')
 const stream = require('stream')
-const cloudinary = require('cloudinary')
+const cloudinary = require('cloudinary').v2
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 if (!process.env.CLOUDINARY_URL) {
     console.error('*******************************************************************************')
@@ -41,11 +42,30 @@ const doUpload = (publicId, req, res, next) => {
 	s.on('end', uploadStream.end)
 	// and the end of the buffer we tell cloudinary to end the upload.
 }
+// Configure Cloudinary Storage for Multer
 
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'avatars', // Folder name in Cloudinary
+      allowed_formats: ['jpg', 'jpeg', 'png'],
+      transformation: [{ width: 150, height: 150, crop: 'limit' }], // Optional transformations
+    },
+  });
 // multer parses multipart form data. 
-const uploadImage = (publicId) => (req, res, next) =>
-     multer().single('image')(req, res, () => 
-               doUpload(publicId, req, res, next))
+const uploadImage = (fieldName) => multer({ storage: storage }).single(fieldName);
+const uploadAvatar = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) {
+        cb(null, true);
+      } else {
+        cb(new Error("Only image files are allowed!"), false);
+      }
+    },
+  }).single("avatar");
 
 
-module.exports = { uploadImage }
+module.exports = { uploadImage, uploadAvatar, doUpload };

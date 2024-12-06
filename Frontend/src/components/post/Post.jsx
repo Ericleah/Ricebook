@@ -1,8 +1,10 @@
+// Post.jsx
 import "./post.scss";
 import TextsmsOutlinedIcon from "@mui/icons-material/TextsmsOutlined"; // Comment icon
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import CreateOutlinedIcon from "@mui/icons-material/CreateOutlined";
 import { Link } from "react-router-dom";
+import styled from "styled-components";
 import Comments from "../comments/Comments";
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns"; // Import date-fns library
@@ -14,6 +16,39 @@ import { selectFollowedUsers } from "../../reducer/followedUsersReducer";
 import { selectUser } from "../../reducer/authReducer";
 import { API_BASE_URL } from "../../config/config";
 
+const BaseButton = styled.button`
+  border: none;
+  border-radius: 5px;
+  padding: 5px 15px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+`;
+
+const CommentButton = styled(BaseButton)`
+  color: white;
+  background-color: #938eef;
+  margin-right: 5px;
+
+  &:hover {
+    background-color: #7a75d6;
+  }
+`;
+
+const ActionButton = styled(BaseButton)`
+  color: white;
+  background-color: #938eef;
+  margin-right: 5px;
+
+  &:hover {
+    background-color: #7a75d6;
+  }
+`;
+
 const Post = ({ post }) => {
   const currentUser = useSelector(selectUser);
   const [commentOpen, setCommentOpen] = useState(false);
@@ -23,6 +58,8 @@ const Post = ({ post }) => {
   const dispatch = useDispatch();
   const followedUsers = useSelector(selectFollowedUsers);
   const posts = useSelector(selectPosts);
+  const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   console.log("post", post);
 
@@ -34,7 +71,7 @@ const Post = ({ post }) => {
       if (!isNaN(postDate)) {
         setTimeAgo(formatDistanceToNow(postDate, { addSuffix: true }));
       } else {
-        console.error("Invalid date format in post.createdAt:", post.createdAt);
+        console.error("Invalid date format in post.date:", post.date);
         setTimeAgo("Unknown time");
       }
     };
@@ -43,7 +80,7 @@ const Post = ({ post }) => {
     const interval = setInterval(updateTimer, updateTimeInterval);
 
     return () => clearInterval(interval);
-  }, [post.createdAt]);
+  }, [post.date]);
 
   const toggleComments = () => {
     setCommentOpen((prevState) => !prevState);
@@ -61,8 +98,9 @@ const Post = ({ post }) => {
   const handleEditSave = async () => {
     try {
       if (post.author === currentUser.username) {
+        setIsUploading(true);
         const response = await fetch(
-          `${API_BASE_URL}/${post.customId}`,
+          `${API_BASE_URL}/articles/${post.id}`, // Correct URL path
           {
             method: "PUT",
             credentials: "include",
@@ -70,8 +108,7 @@ const Post = ({ post }) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              text: editedText,
-              articleId: post.customId,
+              text: editedText, // Only send 'text' when updating the post's text
             }),
           }
         );
@@ -85,6 +122,8 @@ const Post = ({ post }) => {
         dispatch(updatePost(updatedPost));
 
         setEditMode(false);
+        setError("");
+        // Optionally, show a success notification
       } else {
         // Show a Bootstrap alert or handle it in your preferred way
         alert("You cannot edit someone else's post.");
@@ -92,6 +131,9 @@ const Post = ({ post }) => {
       }
     } catch (error) {
       console.error("Error updating post:", error);
+      setError("Failed to update post. Please try again.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -139,13 +181,17 @@ const Post = ({ post }) => {
           ) : (
             <p>{post.text}</p>
           )}
-          <img src={post.image} alt="" />
+          {post.image && <img src={post.image} alt="" />}
         </div>
         <div className="info">
           {editMode ? (
             <>
-              <Button onClick={handleEditSave}>Save</Button>
-              <Button onClick={handleEditCancel}>Cancel</Button>
+              <Button onClick={handleEditSave} disabled={isUploading}>
+                {isUploading ? "Saving..." : "Save"}
+              </Button>
+              <Button onClick={handleEditCancel} disabled={isUploading}>
+                Cancel
+              </Button>
             </>
           ) : (
             <>
@@ -161,7 +207,8 @@ const Post = ({ post }) => {
             </>
           )}
         </div>
-        {commentOpen && <Comments articleId={post.customId} />} {}
+        {commentOpen && <Comments articleId={post.id} />} {/* Corrected articleId */}
+        {error && <div className="error-message">{error}</div>} {/* Display error */}
       </div>
     </div>
   );

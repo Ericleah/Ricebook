@@ -122,10 +122,9 @@ async function findAuthorIdByUsername(authorUsername) {
 }
 
 async function updateArticle(req, res) {
-  const { text, commentId, avatar } = req.body;
+  const { text, commentId } = req.body;
   const articleId = parseInt(req.params.id, 10);
-  const loggedInUsername = req.session.user.username; // Use username instead of _id
-  const userAvatar = avatar;
+  const loggedInUsername = req.session.user.username;
 
   if (isNaN(articleId)) {
     return res.status(400).send({ error: "Invalid article ID" });
@@ -141,32 +140,32 @@ async function updateArticle(req, res) {
     if (!article) {
       return res.status(404).send({ error: "Article not found" });
     }
-    // Resolve username to ObjectId
-    const loggedInUserProfile = await Profile.findOne({ username: loggedInUsername });
-    if (!loggedInUserProfile) {
-      return res.status(404).send({ error: "User profile not found" });
-    }
-    const loggedInUserId = loggedInUserProfile._id; // Convert username to ObjectId
 
-    // Check authorship only if editing article text
     if (commentId === undefined) {
-      // Editing the article text => must be article author
-      console.log("Editing article text");
+      // 编辑文章内容
       if (article.author !== loggedInUsername) {
         return res.status(403).send({ error: "Forbidden" });
       }
       article.text = text;
     } else if (commentId === -1) {
-      // Add a new comment => any logged-in user can comment
+      // 添加新评论
+      const loggedInUserProfile = await Profile.findOne({ username: loggedInUsername });
+      if (!loggedInUserProfile) {
+        return res.status(404).send({ error: "User profile not found" });
+      }
+
       article.comments.push({
         body: text,
-        author: loggedInUserId, // Use ObjectId here
-        avatar: userAvatar, // Include avatar if available
+        author: loggedInUserProfile._id,
+        avatar: loggedInUserProfile.avatar,
         date: new Date(),
+        customId: Math.floor(Math.random() * 1000000), 
       });
-    } else {
-      // Editing a comment => must be that comment's author
+      console.log("New comment added:", article.comments[article.comments.length - 1]);
+    } 
+    else {
       const parsedCommentId = parseInt(commentId, 10);
+      console.log("Parsed comment ID:", parsedCommentId);
       if (isNaN(parsedCommentId)) {
         return res.status(400).send({ error: "Invalid comment ID" });
       }
@@ -175,15 +174,17 @@ async function updateArticle(req, res) {
       if (!comment) {
         return res.status(404).send({ error: "Comment not found" });
       }
-      
-      console.log("loggedInUsername:", loggedInUsername); 
-      console.log("comment.author:", comment.author);
+
       const commentAuthorProfile = await Profile.findById(comment.author);
-      const commentAuthorUsername = commentAuthorProfile.username;
-      if (commentAuthorUsername !== loggedInUsername) {
-        return res.status(403).send({ error: "Forbidden" });
+      if (!commentAuthorProfile) {
+        return res.status(404).send({ error: "Comment author not found" });
+      }
+
+      if (commentAuthorProfile.username !== loggedInUsername) {
+        return res.status(403).send({ error: "Forbidden: You cannot edit someone else's comment." });
       }
       comment.body = text;
+      console.log("Comment updated:", comment);
     }
 
     await article.save();
@@ -215,6 +216,7 @@ async function updateArticle(req, res) {
     res.status(500).send({ error: "Internal server error" });
   }
 }
+
 
 module.exports = (app) => {
   app.post("/article", isLoggedIn, uploadImage('image'), createArticle);

@@ -8,6 +8,7 @@ import Watch from "../../assets/4.png";
 import { useSelector } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
 import styled from "styled-components";
+import { API_BASE_URL } from "../../config/config";
 
 // Styled Components for the buttons
 const BaseButton = styled.button`
@@ -58,7 +59,6 @@ const LeftBar = () => {
   const [profilePic, setProfilePic] = useState("");
   const [error, setError] = useState("");
 
-  const API_BASE_URL = "http://localhost:3001"; // Ensure this matches your backend URL
 
   useEffect(() => {
     const fetchUserProfile = async () => {

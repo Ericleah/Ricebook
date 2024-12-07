@@ -19,10 +19,8 @@ async function getCommentAuthor(req, res) {
       return res.status(404).send({ error: "Comment not found" });
     }
     
-    console.log("Comment author:", comment.author);
     // Fetch the comment author's details
     const user = await Profile.findById(comment.author).exec();
-    console.log("User:", user);
     if (!user) {
       return res.status(404).send({ error: "User not found" });
     }

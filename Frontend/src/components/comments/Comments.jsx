@@ -115,7 +115,7 @@ const Comments = ({ articleId }) => {
           body: JSON.stringify({
             // Adjust the payload to match backend expectations
             text: newComment.body, // Assuming you're adding a comment's body as text
-            commentId: -1, // Use -1 to indicate a new comment
+            commentId:  -1, // Use -1 to indicate a new comment
             avatar: currentUser.avatar,
           }),
         });
@@ -154,11 +154,6 @@ const Comments = ({ articleId }) => {
     }
   };
 
-  const handleEdit = (comment) => {
-    setEditingCommentId(comment.customId);
-    setEditedCommentBody(comment.body);
-  };
-
   const handleEditCancel = () => {
     setEditingCommentId(null);
     setEditedCommentBody("");
@@ -189,59 +184,63 @@ const Comments = ({ articleId }) => {
     }
   };
 
+  const handleEdit = (comment) => {
+    setEditingCommentId(comment.customId); // Set the ID of the comment being edited
+    setEditedCommentBody(comment.body); // Load the current comment body into the edit input
+  };
+  
   const handleEditSave = async (commentId) => {
-    // You can call this function like this:
     const authorUsername = await getCommentAuthor(articleId, commentId);
-
-    if (authorUsername === currentUser.username) {
-      if (editedCommentBody.trim() !== "") {
-        try {
-          setIsUploading(true);
-          const response = await fetch(`${API_BASE_URL}/articles/${articleId}`, {
-            method: "PUT",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              text: editedCommentBody,
-              commentId: commentId, // Pass the commentId to indicate editing
-              avatar: currentUser.avatar,
-            }),
-          });
-
-          if (!response.ok) {
-            let errorMessage = "Failed to update the comment.";
-            try {
-              const errorData = await response.json();
-              errorMessage = errorData.error || errorMessage;
-            } catch (parseError) {
-              console.error("Error parsing error response:", parseError);
-            }
-            console.error("Error response from server:", errorMessage);
-            throw new Error(errorMessage);
-          }
-
-          const updatedArticle = await response.json();
-
-          dispatch(updateComment(articleId, commentId, updatedArticle.comments));
-
-          setEditingCommentId(null);
-          setEditedCommentBody("");
-          // Optionally, show a success notification
-        } catch (error) {
-          console.error("Error updating comment:", error);
-          setError("Failed to update comment. Please try again.");
-        } finally {
-          setIsUploading(false);
-        }
-      }
-    } else {
+  
+    if (authorUsername !== currentUser.username) {
+      alert("You cannot edit someone else's comment.");
       setEditingCommentId(null);
       setEditedCommentBody("");
-      alert("You cannot edit someone else's comment.");
+      return;
+    }
+  
+    if (editedCommentBody.trim() !== "") {
+      try {
+        setIsUploading(true);
+        const response = await fetch(`${API_BASE_URL}/articles/${articleId}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: editedCommentBody,
+            commentId: commentId, // Only update the specific comment by ID
+            avatar: currentUser.avatar,
+          }),
+        });
+  
+        if (!response.ok) {
+          throw new Error("Failed to update the comment.");
+        }
+  
+        const updatedArticle = await response.json();
+  
+        // Update the specific comment in the Redux state
+        const updatedComments = comments.map((comment) =>
+          comment.customId === commentId
+            ? { ...comment, body: editedCommentBody }
+            : comment
+        );
+  
+        dispatch(setComments(articleId, updatedComments));
+  
+        setEditingCommentId(null);
+        setEditedCommentBody("");
+      } catch (error) {
+        console.error("Error updating comment:", error);
+        setError("Failed to update comment. Please try again.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
+  
 
   return (
     <div className="comments">
@@ -274,7 +273,7 @@ const Comments = ({ articleId }) => {
                 style={{ height: "30px", borderRadius: "20px" }}
               />
             ) : (
-        <p>{comment.body}</p>
+              <p>{comment.body}</p>
             )}
           </div>
           <div className="actions">

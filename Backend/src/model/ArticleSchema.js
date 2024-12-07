@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 
 const commentSchema = new mongoose.Schema({
-  customId: { type: Number, index: true },
+  customId: { type: Number, index: true, unique: true },
   author: { type: mongoose.Schema.Types.ObjectId, ref: "profile" }, // Reference to user model
   body: { type: String, required: true },
   date: { type: Date, default: Date.now },

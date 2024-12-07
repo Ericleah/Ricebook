@@ -2,6 +2,45 @@ const User = require("./model/UserSchema");
 const Profile = require("./model/ProfileSchema");
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const passport = require("passport");
+
+
+function generateRandomDOB() {
+  // Generate a random date of birth between 1990-01-01 and 2000-12-31
+  const year = 1990 + Math.floor(Math.random() * 11);
+  const month = Math.floor(Math.random() * 12); // 0-11
+  const day = 1 + Math.floor(Math.random() * 28); // days 1-28
+  const date = new Date(year, month, day);
+  return date.toISOString().split("T")[0];
+}
+
+function generateRandomPhone() {
+  return String(1000000000 + Math.floor(Math.random() * 9000000000));
+}
+
+function generateRandomZipcode() {
+  return String(10000 + Math.floor(Math.random() * 90000));
+}
+const generateValidUsername = (name) => {
+  // Remove non-alphanumeric characters and ensure the username starts with a letter
+  let baseUsername = name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "");
+  if (!/^[a-zA-Z]/.test(baseUsername)) {
+    baseUsername = "user" + baseUsername;
+  }
+  const randomSuffix = Math.floor(Math.random() * 1000);
+  return `${baseUsername}${randomSuffix}`;
+};
+const generateRandomPassword = () => {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$!%*?&";
+  let password = "";
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
+
 
 /**
  * Middleware: Check if the user is logged in by verifying session.
@@ -71,39 +110,51 @@ async function register(req, res) {
     return res.status(400).send({ error: "Fill out all required information" });
   }
 
+  // Check if username already exists in the database instead of a local object
   try {
-    const existingUser = await User.findOne({ username }).exec();
-    if (existingUser) {
+    const user = await User.findOne({ username: username }).exec();
+
+    if (user) {
       return res.status(400).send({ error: "Username already exists" });
     }
 
-    const hash = await bcrypt.hash(password, saltRounds);
+    // Generate a salt and hash the password
+    bcrypt.hash(password, saltRounds, async (err, hash) => {
+      if (err) {
+        return res.status(500).send({ error: "Internal server error" });
+      }
 
-    const newUser = new User({
-      username,
-      password: hash,
+      const newUser = new User({
+        username,
+        password: hash,
+        //email,
+        //dob,
+        //phone,
+        //zipcode,
+      });
+
+      console.log({ newUser });
+
+      await newUser.save();
+
+      // Now create and save the user profile with the initial information
+      const newProfile = new Profile({
+        user_id: newUser._id, // This links the Profile to the User document
+        username,
+        email,
+        dob,
+        phone,
+        zipcode,
+        password: hash, //can't store hash, because password can be updated
+      });
+
+      console.log({ newProfile });
+
+      await newProfile.save();
+      res.send({ username: username, result: "success" });
     });
-
-    await newUser.save();
-
-    const newProfile = new Profile({
-      user_id: newUser._id,
-      username,
-      email,
-      dob,
-      phone,
-      zipcode,
-      password: hash,
-    });
-    
-    console.log({ newProfile });
-
-    await newProfile.save();
-
-    res.send({ username, result: "success" });
   } catch (error) {
-    console.error("Error during registration:", error);
-    res.status(500).send({ error: "Internal server error" });
+    return res.status(500).send({ error: "Internal server error" });
   }
 }
 
@@ -130,7 +181,7 @@ function logout(req, res) {
  */
 module.exports = {
   AuthRoutes: (app) => {
-    const openPaths = ["/", "/login", "/register", "/logout"];
+    const openPaths = ["/", "/login", "/register", "/logout", "/auth/google", "/auth/google/callback",   "/auth/googleRegister"];
 
     app.use((req, res, next) => {
       if (!openPaths.includes(req.path)) {
@@ -138,7 +189,53 @@ module.exports = {
       }
       next();
     });
-
+    app.post("/auth/googleRegister", async (req, res) => {
+      const { displayName, email, photoURL, uid } = req.body;
+    
+      try {
+        let user = await User.findOne({ googleId: uid });
+    
+        if (!user) {
+          // Create random info for new Google user
+          const dob = generateRandomDOB();
+          const phone = generateRandomPhone();
+          const zipcode = generateRandomZipcode();
+    
+          user = await User.create({
+            googleId: uid,
+            username: displayName,
+          });
+    
+          await Profile.create({
+            user_id: user._id,
+            username: displayName,
+            email: email || `user${Date.now()}@example.com`,
+            avatar: photoURL || "",
+            dob,
+            phone,
+            zipcode,
+          });
+        }
+    
+        // Set the session so isLoggedIn middleware works
+        req.session.user = user;
+    
+        // Return user data for frontend
+        res.send({
+          username: user.username,
+          email: email,
+          avatar: photoURL,
+          uid,
+          // add dob, phone, zipcode if you want to return them
+          // in that case, fetch them from the Profile model
+          // If you want them now:
+        });
+      } catch (error) {
+        console.error("Error in /auth/googleRegister:", error);
+        res.status(500).send({ error: "Internal server error" });
+      }
+    });
+    // Local Auth Routes
     app.post("/login", login);
     app.post("/register", register);
     app.put("/logout", logout);

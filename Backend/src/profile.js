@@ -319,6 +319,58 @@ async function updatePhone(req, res) {
   }
 }
 
+async function linkThirdPartyUser (req, res){
+  const { username } = req.body;
+
+  try {
+    const user = await User.findOne({ username }).exec();
+    if (!user) {
+      return res.status(404).send({ error: "User not found" });
+    }
+
+    const profile = await Profile.findOne({ user_id: user._id }).exec();
+    if (!profile) {
+      return res.status(404).send({ error: "Profile not found" });
+    }
+
+    // Set isThirdPartyUser to true or link a provider
+    // If you have a specific field like `googleId` or `isThirdPartyUser`, update it here.
+    // For now, let's assume `isThirdPartyUser` is a boolean on profile.
+    profile.isThirdPartyUser = true;
+    await profile.save();
+
+    res.send({ result: "success" });
+  } catch (error) {
+    console.error("Error linking third party account:", error);
+    res.status(500).send({ error: "Internal server error" });
+  }
+};
+
+async function unlinkThirdPartyUser(req, res){
+  const { username } = req.body;
+
+  try {
+    const user = await User.findOne({ username }).exec();
+    if (!user) {
+      return res.status(404).send({ error: "User not found" });
+    }
+
+    const profile = await Profile.findOne({ user_id: user._id }).exec();
+    if (!profile) {
+      return res.status(404).send({ error: "Profile not found" });
+    }
+
+    // Set isThirdPartyUser to false or remove googleId
+    profile.isThirdPartyUser = false;
+    await profile.save();
+
+    res.send({ result: "success" });
+  } catch (error) {
+    console.error("Error unlinking third party account:", error);
+    res.status(500).send({ error: "Internal server error" });
+  }
+};
+
 module.exports = (app) => {
   app.get("/headline/:user?", isLoggedIn, getHeadline);
   app.put("/headline", isLoggedIn, updateHeadline);
@@ -338,4 +390,8 @@ module.exports = (app) => {
 
   app.get("/phone/:user?", isLoggedIn, getPhone);
   app.put("/phone", isLoggedIn, updatePhone);
+
+  app.post("/linkThirdPartyUser", isLoggedIn, linkThirdPartyUser);
+  app.delete("/unlinkThirdPartyUser", isLoggedIn, unlinkThirdPartyUser);
+
 };

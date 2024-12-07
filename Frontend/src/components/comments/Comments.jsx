@@ -87,6 +87,22 @@ const Comments = ({ articleId }) => {
       dispatch(setComments(articleId, currentPost.comments));
     }
   }, [articleId, posts, dispatch]);
+  
+  const fetchJsonData = async (url) => {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} - ${response.statusText}`);
+    }
+
+    return await response.json();
+  };
 
   const handleSendClick = async () => {
     if (articleId === undefined) {
@@ -94,7 +110,7 @@ const Comments = ({ articleId }) => {
       setError("Unable to send comment. Please try again.");
       return;
     }
-
+    const avatarData = await fetchJsonData(`${API_BASE_URL}/avatar/${currentUser.username}`);
     if (inputValue.trim() !== "") {
       const newComment = {
         // id: commentId, // Comment ID will be handled by backend

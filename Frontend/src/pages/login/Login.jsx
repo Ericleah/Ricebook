@@ -8,7 +8,8 @@ import { useDispatch } from 'react-redux';
 import { login } from '../../actions/authActions'; 
 import riceIcon from '../../assets/rice-university-logo.png';
 import { API_BASE_URL } from '../../config/config.js';
-import { auth, googleProvider, signInWithPopup } from "../../firebase"; // Import Firebase auth
+import { auth, googleProvider } from "../../firebase"; // Import the initialized auth & provider
+import { signInWithPopup } from "firebase/auth";
 
 // Styled Components for the buttons
 const Card = styled.div`
@@ -158,36 +159,34 @@ const Login = () => {
   // Handle Google Sign-In
   const handleGoogleSignIn = async () => {
     try {
-      const result = await auth.signInWithPopup(googleProvider);
-      const user = result.user;
-      const token = await user.getIdToken();
-
-      // Send token to backend to receive your own JWT
-      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user; // Firebase user info
+  
+      // Call backend to create/find user and set session
+      const response = await fetch(`${API_BASE_URL}/auth/googleRegister`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ token }),
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // Important to include for session cookies
+        body: JSON.stringify({
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+          uid: user.uid,
+        }),
       });
-
+  
       const data = await response.json();
-
       if (response.ok) {
-        // Store JWT in localStorage
-        localStorage.setItem("jwtToken", data.token);
-        // Update Redux store with user data
-        dispatch(login(data)); // Adjust based on your Redux action
-        // Redirect to home page
+        dispatch(login(data)); // Now data includes all user info from backend
         navigate("/");
       } else {
-        throw new Error(data.error || "Authentication failed");
+        console.error("Failed to finalize Google sign in:", data.error);
       }
     } catch (error) {
       console.error("Error during Google sign-in:", error);
-      setLoginError("Google sign-in failed. Please try again.");
     }
   };
+  
 
   return (
     <div className="login-container">

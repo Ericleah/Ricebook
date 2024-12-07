@@ -146,37 +146,34 @@ const RightBar = () => {
           },
         }
       );
-
+  
       if (!unfollowResponse.ok) {
-        throw new Error("Failed to unfollow the user.");
+        const errorData = await unfollowResponse.json();
+        throw new Error(errorData.error || "Failed to unfollow the user.");
       }
-
+  
       const updatedUserInfo = await unfollowResponse.json();
-
-      // Update the Redux store
-      dispatch(
-        setFollowedUsers(await getFollowingDetails(updatedUserInfo.following))
-      );
-
-      // Update the local state to reflect changes without refreshing
-      setfollowedUsersObjects((prevUsers) =>
-        prevUsers.filter((user) => user.username !== userToUnfollow.username)
-      );
-
+  
+      // Fetch updated details for the remaining followed users
+      const updatedFollowedDetails = await getFollowingDetails(updatedUserInfo.following);
+  
+      // Update Redux store and local state
+      dispatch(setFollowedUsers(updatedFollowedDetails));
+      setfollowedUsersObjects(updatedFollowedDetails);
+  
+      // Optionally, update related states like `onlineFriends` or `newFollowers`
       setOnlineFriends((prevFriends) =>
-        prevFriends.filter(
-          (friend) => friend.username !== userToUnfollow.username
-        )
+        prevFriends.filter((friend) => friend.username !== userToUnfollow.username)
       );
       setNewFollowers((prevFollowers) =>
-        prevFollowers.filter(
-          (follower) => follower.username !== userToUnfollow.username
-        )
+        prevFollowers.filter((follower) => follower.username !== userToUnfollow.username)
       );
     } catch (error) {
       console.error("Error unfollowing user:", error);
+      setMessage("Failed to unfollow user. Please try again.");
     }
   };
+  
 
   const handleAddFriend = async () => {
     if (inputName.trim() !== "") {

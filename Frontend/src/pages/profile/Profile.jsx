@@ -271,13 +271,23 @@ const Profile = () => {
   // Function to handle linking accounting
   const handleLinkAccounting = async () => {
     setIsLinkingInProgress(true);
-
+  
     try {
-      // Replace this with your actual linking logic
-      // Example: const response = await fetch("link_accounting_url", { method: "POST" });
-
-      // If linking is successful, update the state
-      setIsAccountingLinked(true);
+      const response = await fetch(`${API_BASE_URL}/linkThirdPartyUser`, {
+        method: "POST",
+        credentials: "include", // Important for session cookies
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: currentUser.username }),
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        setIsAccountingLinked(true);
+      } else {
+        console.error("Failed to link accounting:", data.error);
+        setError(data.error || "Failed to link accounting. Please try again.");
+      }
     } catch (error) {
       console.error("Error linking accounting:", error);
       setError("Failed to link accounting. Please try again.");
@@ -289,35 +299,33 @@ const Profile = () => {
   const handleUnlinkAccounting = async () => {
     console.log("unlink");
     setIsLinkingInProgress(true);
-
+  
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/unlinkThirdPartyUser`, // Adjust URL based on your backend
-        {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: currentUser.username,
-            isThirdPartyUser: currentUser.isThirdPartyUser,
-          }),
-        }
-      );
-
-      console.log(response);
-
-      if (!response.ok) {
-        throw new Error(`Failed to delete account: ${response.statusText}`);
+      const response = await fetch(`${API_BASE_URL}/unlinkThirdPartyUser`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: currentUser.username,
+          isThirdPartyUser: currentUser.isThirdPartyUser,
+        }),
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        // If successful, update state or navigate away
+        setIsAccountingLinked(false);
+        // Example: navigate("/login") or show a success message
+        //window.location.href = "https://yourdomain.com/login";
+      } else {
+        console.error("Failed to unlink accounting:", data.error);
+        setError(data.error || "Failed to unlink accounting. Please try again.");
       }
-
-      // Handle successful account deletion
-      // Redirect to the login page
-      //navigate("/login");
-      window.location.href = "https://yourdomain.com/login"; // Adjust as needed
     } catch (error) {
-      console.error("Error deleting account:", error);
+      console.error("Error unlinking accounting:", error);
       setError("Failed to unlink accounting. Please try again.");
     } finally {
       setIsLinkingInProgress(false);

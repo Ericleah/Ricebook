@@ -16,6 +16,7 @@ import styled from "styled-components";
 import EditIcon from "@mui/icons-material/Edit";
 import { selectPosts } from "../../reducer/postsReducer";
 import { API_BASE_URL } from "../../config/config";
+import { setPosts } from "../../actions/postsActions";
 
 const BaseButton = styled.button`
   border: none;
@@ -61,7 +62,56 @@ const Comments = ({ articleId }) => {
   const posts = useSelector(selectPosts);
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1); // Assuming total pages info is available from server
 
+
+  const fetchCurrentUserPosts = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/articles?username=${currentUser.username}&page=${currentPage}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const data = await response.json();
+  
+      console.log("Fetched raw articles:", data.articles); // Log the raw articles
+      console.log("Total Pages:", data.totalPages);
+  
+      // Handle unresolved objects in comments
+      const processedArticles = data.articles.map((article) => ({
+        ...article,
+        comments: article.comments.map((comment) => {
+          if (typeof comment === "object") {
+            console.log("commentauthor", comment.author);
+            // If comment is an object, resolve fields
+            return {
+              customId: comment.customId || null,
+              author: comment.author || "Unknown", 
+              avatar: comment.avatar || comment.author?.avatar || "",
+              body: comment.body || "",
+              date: comment.date || "",
+            };
+          } else {
+            console.warn("Unhandled comment format:", comment); // Warn if comment isn't an object
+            return null; // Filter out invalid comments
+          }
+        }).filter(Boolean), // Remove null comments
+      }));
+  
+      console.log("Processed articles:", processedArticles); // Log processed articles
+  
+      dispatch(setPosts(processedArticles)); // Dispatch processed articles to Redux
+      setTotalPages(data.totalPages);
+    } catch (error) {
+      console.error("Error fetching user posts:", error);
+    }
+  };
   // Initialize toast notifications (if using react-toastify)
   useEffect(() => {
     // Initialize if necessary
@@ -76,17 +126,42 @@ const Comments = ({ articleId }) => {
   }, [articleId]);
 
   // Fetch comments when the component mounts
-  useEffect(() => {
-    if (articleId === undefined) {
-      console.error("Cannot fetch comments: articleId is undefined.");
-      return;
-    }
-    // Extract comments for the current article from the posts state
-    const currentPost = posts.find((post) => post.customId === articleId);
-    if (currentPost && currentPost.comments) {
-      dispatch(setComments(articleId, currentPost.comments));
-    }
-  }, [articleId, posts, dispatch]);
+// Fetch comments when the component mounts
+    useEffect(() => {
+      if (articleId === undefined) {
+        console.error("Cannot fetch comments: articleId is undefined.");
+        return;
+      }
+
+      // Extract comments for the current article from the posts state
+      const currentPost = posts.find((post) => post.id === articleId);
+      console.log("posts:", posts);
+      console.log("postid:", articleId);
+      console.log("currentPost", currentPost);
+
+      if (currentPost) {
+        console.log("Current post comments:", currentPost.comments);
+        // Check if the comments are objects or already in the correct format
+        const formattedComments = currentPost.comments.map((comment) => {
+          console.log("comment", comment);
+          if (comment === "object") {
+            console.log("Formatting comment:", comment);
+            return {
+              customId: comment.customId,
+              author: comment.author.username,
+              avatar: comment.author.avatar,
+              body: comment.body,
+              date: comment.date,
+            };
+          }
+          return comment;
+        });
+
+        // Dispatch the formatted comments to the Redux store
+        dispatch(setComments(articleId, formattedComments));
+      }
+    }, [articleId, posts, dispatch]);
+
   
   const handleSendClick = async () => {
     if (articleId === undefined) {
@@ -144,6 +219,7 @@ const Comments = ({ articleId }) => {
 
         setInputValue("");
         setError("");
+        await fetchCurrentUserPosts(); // Refresh the posts
         // Optionally, show a success notification
       } catch (error) {
         console.error("Error updating comment:", error);

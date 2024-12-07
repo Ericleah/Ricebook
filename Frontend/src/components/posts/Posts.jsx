@@ -70,21 +70,45 @@ const Posts = () => {
           },
         }
       );
-  
       const data = await response.json();
   
-      console.log("Fetched articles:", data.articles.length, "Total Pages:", data.totalPages);
+      console.log("Fetched raw articles:", data.articles); // Log the raw articles
+      console.log("Total Pages:", data.totalPages);
   
-      dispatch(setPosts(data.articles));
+      // Handle unresolved objects in comments
+      const processedArticles = data.articles.map((article) => ({
+        ...article,
+        comments: article.comments.map((comment) => {
+          if (typeof comment === "object") {
+            console.log("commentauthor", comment.author);
+            // If comment is an object, resolve fields
+            return {
+              customId: comment.customId || null,
+              author: comment.author || "Unknown", 
+              avatar: comment.avatar || comment.author?.avatar || "",
+              body: comment.body || "",
+              date: comment.date || "",
+            };
+          } else {
+            console.warn("Unhandled comment format:", comment); // Warn if comment isn't an object
+            return null; // Filter out invalid comments
+          }
+        }).filter(Boolean), // Remove null comments
+      }));
+  
+      console.log("Processed articles:", processedArticles); // Log processed articles
+  
+      dispatch(setPosts(processedArticles)); // Dispatch processed articles to Redux
       setTotalPages(data.totalPages);
     } catch (error) {
       console.error("Error fetching user posts:", error);
     }
   };
-
+  
   useEffect(() => {
     fetchCurrentUserPosts();
   }, [currentPage, followedUsers]); // Dependency on currentPage
+  
 
   const sortedAndFilteredPosts = useMemo(() => {
     return (Array.isArray(posts) ? posts : [])

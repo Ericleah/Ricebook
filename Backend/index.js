@@ -33,7 +33,7 @@ app.use(
     cookie: { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === "production", // Use secure cookies only in production
-      // sameSite: "none", // Required for cross-site cookies
+      sameSite: "none", // Required for cross-site cookies
     },
   })
 );
@@ -41,7 +41,8 @@ app.use(
 // Configure CORS to allow credentials and the frontend origin
 app.use(
   cors({
-    origin: "http://localhost:3000", // Replace with your frontend URL in production
+    origin: "https://cw206ricebook-v1.surge.sh", // Replace with your frontend URL in production
+    // origin: "http://localhost:3000", // Allow requests from the React app
     credentials: true, // Allow credentials (cookies) to be sent
   })
 );

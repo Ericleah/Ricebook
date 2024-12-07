@@ -56,17 +56,16 @@ async function createArticle(req, res) {
 
 
 async function getArticles(req, res) {
-  const loggedInUser = req.session.user.username; // The user making the request
-  const usernameQuery = req.query.username || loggedInUser; // If no username provided, use the logged-in user
-  const page = parseInt(req.query.page) || 1;
-  const limit = 4; // Adjust as needed
+  const loggedInUser = req.session.user.username;
+  const usernameQuery = req.query.username || loggedInUser;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 4;
   const skip = (page - 1) * limit;
 
   try {
     // Find the user for the given usernameQuery
     const user = await User.findOne({ username: usernameQuery }).exec();
     if (!user) {
-      // If no user found with usernameQuery, return empty
       return res.json({ articles: [], totalPages: 1 });
     }
 
@@ -78,13 +77,17 @@ async function getArticles(req, res) {
     // Authors should include the requested user and their followed users
     const authors = [usernameQuery, ...followedUsernames];
 
-    // Fetch articles from these authors, sorted by date desc, with pagination
+    // Fetch articles and populate comments
     const [articles, count] = await Promise.all([
       Article.find({ author: { $in: authors } })
-        .sort({ date: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate([
+        { path: "author", select: "username avatar" },
+        { path: "comments.author", select: "username avatar" },
+      ])
+      .exec(),
       Article.countDocuments({ author: { $in: authors } }),
     ]);
 
@@ -94,17 +97,26 @@ async function getArticles(req, res) {
       id: article.customId,
       author: article.author,
       text: article.text,
-      comments: article.comments,
+      comments: article.comments.map((c) => {
+        return {
+          customId: c.customId,
+          author: c.author.username,
+          avatar: c.author.avatar,
+          body: c.body,
+          date: c.date,
+        };
+      }),
       date: article.date,
       image: article.image,
     }));
-
+    console.log(response);
     res.json({ articles: response, totalPages });
   } catch (error) {
-    console.error("Error fetching articles:", error);
-    res.status(500).send({ error: "Internal server error" });
+    console.error('Error fetching articles:', error);
+    res.status(500).send({ error: 'Internal server error.' });
   }
 }
+
 
 
 async function findAuthorIdByUsername(authorUsername) {
@@ -142,13 +154,11 @@ async function updateArticle(req, res) {
     }
 
     if (commentId === undefined) {
-      // 编辑文章内容
       if (article.author !== loggedInUsername) {
         return res.status(403).send({ error: "Forbidden" });
       }
       article.text = text;
     } else if (commentId === -1) {
-      // 添加新评论
       const loggedInUserProfile = await Profile.findOne({ username: loggedInUsername });
       if (!loggedInUserProfile) {
         return res.status(404).send({ error: "User profile not found" });
@@ -209,7 +219,7 @@ async function updateArticle(req, res) {
         date: c.date,
       })),
     };
-
+    console.log("Updated article:", mappedArticle);
     res.status(200).json(mappedArticle);
   } catch (error) {
     console.error("Error updating article:", error);

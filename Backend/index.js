@@ -33,7 +33,7 @@ app.use(
     cookie: { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === "production", // Use secure cookies only in production
-      sameSite: "none", // Required for cross-site cookies
+      // sameSite: "none", // Required for cross-site cookies
     },
   })
 );

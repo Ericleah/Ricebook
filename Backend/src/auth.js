@@ -199,21 +199,41 @@ app.post("/auth/googleRegister", async (req, res) => {
   }
 
   try {
-    // 1. Check if there's an existing user with the same username as displayName
-    let user = await User.findOne({ username: displayName }).exec();
+    console.log("Received Google Register request:", { displayName, email, uid });
+
+    // Check for existing user by googleId
+    let user = await User.findOne({ googleId: uid }).exec();
+    console.log("User found by Google ID:", user);
 
     if (user) {
-      // User with this username already exists
-      // If they don't have googleId, link them now
+      // User found by Google ID, log them in
+      req.session.user = user;
+      const profile = await Profile.findOne({ user_id: user._id }).exec();
+
+      return res.send({
+        username: user.username,
+        email: profile?.email || email || `${Date.now()}@example.com`,
+        avatar: profile?.avatar || photoURL || "",
+        dob: profile?.dob || "",
+        phone: profile?.phone || "",
+        zipcode: profile?.zipcode || "",
+        uid,
+        googleId: user.googleId,
+      });
+    }
+
+    // Check for existing user by username
+    user = await User.findOne({ username: displayName }).exec();
+    console.log("User found by username:", user);
+
+    if (user) {
+      // User with this username exists but no Google ID, link Google account
       if (!user.googleId) {
         user.googleId = uid;
         await user.save();
       }
 
-      // Log them in
       req.session.user = user;
-
-      // Fetch profile to return full data
       const profile = await Profile.findOne({ user_id: user._id }).exec();
 
       return res.send({
@@ -224,44 +244,35 @@ app.post("/auth/googleRegister", async (req, res) => {
         phone: profile?.phone || "",
         zipcode: profile?.zipcode || "",
         uid,
-        googleId: user.googleId
+        googleId: user.googleId,
       });
     }
 
-    // 2. If no user by that username, check if user by googleId exists
-    user = await User.findOne({ googleId: uid }).exec();
-    if (user) {
-      // If user found by googleId, just log them in
-      req.session.user = user;
-      const profile = await Profile.findOne({ user_id: user._id }).exec();
-      return res.send({
-        username: user.username,
-        email: profile?.email || email || `${Date.now()}@example.com`,
-        avatar: profile?.avatar || photoURL || "",
-        dob: profile?.dob || "",
-        phone: profile?.phone || "",
-        zipcode: profile?.zipcode || "",
-        uid,
-        googleId: user.googleId
-      });
+    // Check for existing profile by username
+    const existingProfile = await Profile.findOne({ username: displayName }).exec();
+    console.log("Profile found by username:", existingProfile);
+
+    if (existingProfile) {
+      // Conflict: The profile already exists, but no associated User
+      const errorMessage = `A profile with username '${displayName}' already exists. Please resolve the conflict.`;
+      console.error(errorMessage);
+      return res.status(400).send({ error: errorMessage });
     }
 
-    // 3. If no user by username or googleId, create new user and profile with random data
+    // Create new user and profile
+    console.log("Creating a new user and profile for Google account");
     const dob = generateRandomDOB();
     const phone = generateRandomPhone();
     const zipcode = generateRandomZipcode();
 
-    // We can use displayName as username directly since no conflict found by that name
-    const username = displayName;
-
     const newUser = await User.create({
       googleId: uid,
-      username: username,
+      username: displayName,
     });
 
-    await Profile.create({
+    const newProfile = await Profile.create({
       user_id: newUser._id,
-      username,
+      username: displayName,
       email: email || `user${Date.now()}@example.com`,
       avatar: photoURL || "",
       dob,
@@ -271,15 +282,13 @@ app.post("/auth/googleRegister", async (req, res) => {
 
     req.session.user = newUser;
 
-    const profile = await Profile.findOne({ user_id: newUser._id }).exec();
-
     res.send({
       username: newUser.username,
-      email: profile?.email,
-      avatar: profile?.avatar,
-      dob: profile?.dob,
-      phone: profile?.phone,
-      zipcode: profile?.zipcode,
+      email: newProfile.email,
+      avatar: newProfile.avatar,
+      dob: newProfile.dob,
+      phone: newProfile.phone,
+      zipcode: newProfile.zipcode,
       uid,
       googleId: newUser.googleId,
     });
@@ -289,7 +298,6 @@ app.post("/auth/googleRegister", async (req, res) => {
   }
 });
 
-    
     // Local Auth Routes
     app.post("/login", login);
     app.post("/register", register);

@@ -19,8 +19,7 @@ const userSchema = new mongoose.Schema({
     default:
       "https://upload.wikimedia.org/wikipedia/en/thumb/4/4e/DWLeebron.jpg/220px-DWLeebron.jpg",
   },
-  googleId: { type: String, unique: true },
-
+  googleId: { type: String, unique: true, sparse: true }, // sparse: true, in case some users don't have googleId
 });
 
 module.exports = mongoose.model("user", userSchema);

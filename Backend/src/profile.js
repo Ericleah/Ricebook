@@ -319,29 +319,118 @@ async function updatePhone(req, res) {
   }
 }
 
-async function linkThirdPartyUser (req, res){
-  const { username } = req.body;
+async function linkThirdPartyUser(req, res){
+  const { displayName, email, photoURL, uid } = req.body;
+
+  if (!displayName || !uid) {
+    return res.status(400).send({ error: "Missing required fields: displayName, uid" });
+  }
 
   try {
-    const user = await User.findOne({ username }).exec();
-    if (!user) {
-      return res.status(404).send({ error: "User not found" });
+    // Check if user is logged in normally
+    let sessionUser = req.session.user;
+
+    if (sessionUser) {
+      // User is logged in with normal credentials
+      // Just update their account with googleId
+      let user = await User.findById(sessionUser._id).exec();
+      if (!user) {
+        // If no user found by sessionUser._id, fallback to registration logic
+        user = await createNewGoogleUser(uid, displayName, email, photoURL);
+        req.session.user = user;
+        const profile = await Profile.findOne({ user_id: user._id }).exec();
+        return res.send({
+          username: user.username,
+          email: profile?.email || email || `user${Date.now()}@example.com`,
+          avatar: profile?.avatar || photoURL || "",
+          dob: profile?.dob || "",
+          phone: profile?.phone || "",
+          zipcode: profile?.zipcode || "",
+          uid,
+          googleId: user.googleId
+        });
+      }
+
+      // If user found, set googleId
+      if (!user.googleId) {
+        user.googleId = uid;
+        await user.save();
+      }
+
+      // user already had a profile from normal register
+      const profile = await Profile.findOne({ user_id: user._id }).exec();
+      // Update session
+      req.session.user = user;
+      return res.send({
+        username: user.username,
+        email: profile?.email || email || `user${Date.now()}@example.com`,
+        avatar: profile?.avatar || photoURL || "",
+        dob: profile?.dob || "",
+        phone: profile?.phone || "",
+        zipcode: profile?.zipcode || "",
+        uid,
+        googleId: user.googleId
+      });
+
+    } else {
+      // If user isn't logged in normally, fallback to googleRegister logic
+      // Check by googleId or username
+      let user = await User.findOne({ username: displayName }).exec();
+      if (user) {
+        // username exists, link googleId if not present
+        if (!user.googleId) {
+          user.googleId = uid;
+          await user.save();
+        }
+        req.session.user = user;
+        const profile = await Profile.findOne({ user_id: user._id }).exec();
+        return res.send({
+          username: user.username,
+          email: profile?.email || email || `${Date.now()}@example.com`,
+          avatar: profile?.avatar || photoURL || "",
+          dob: profile?.dob || "",
+          phone: profile?.phone || "",
+          zipcode: profile?.zipcode || "",
+          uid,
+          googleId: user.googleId
+        });
+      }
+
+      // If no user by username, check googleId
+      user = await User.findOne({ googleId: uid }).exec();
+      if (user) {
+        // If found by googleId, just log in
+        req.session.user = user;
+        const profile = await Profile.findOne({ user_id: user._id }).exec();
+        return res.send({
+          username: user.username,
+          email: profile?.email || email || `${Date.now()}@example.com`,
+          avatar: profile?.avatar || photoURL || "",
+          dob: profile?.dob || "",
+          phone: profile?.phone || "",
+          zipcode: profile?.zipcode || "",
+          uid,
+          googleId: user.googleId
+        });
+      }
+
+      // If neither found, create new user and profile
+      user = await createNewGoogleUser(uid, displayName, email, photoURL);
+      req.session.user = user;
+      const profile = await Profile.findOne({ user_id: user._id }).exec();
+      return res.send({
+        username: user.username,
+        email: profile?.email,
+        avatar: profile?.avatar,
+        dob: profile?.dob,
+        phone: profile?.phone,
+        zipcode: profile?.zipcode,
+        uid,
+        googleId: user.googleId,
+      });
     }
-
-    const profile = await Profile.findOne({ user_id: user._id }).exec();
-    if (!profile) {
-      return res.status(404).send({ error: "Profile not found" });
-    }
-
-    // Set isThirdPartyUser to true or link a provider
-    // If you have a specific field like `googleId` or `isThirdPartyUser`, update it here.
-    // For now, let's assume `isThirdPartyUser` is a boolean on profile.
-    profile.isThirdPartyUser = true;
-    await profile.save();
-
-    res.send({ result: "success" });
   } catch (error) {
-    console.error("Error linking third party account:", error);
+    console.error("Error in /linkThirdPartyUser:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 };
@@ -349,6 +438,10 @@ async function linkThirdPartyUser (req, res){
 async function unlinkThirdPartyUser(req, res){
   const { username } = req.body;
 
+  if (!username) {
+    return res.status(400).send({ error: "Username is required" });
+  }
+
   try {
     const user = await User.findOne({ username }).exec();
     if (!user) {
@@ -356,20 +449,48 @@ async function unlinkThirdPartyUser(req, res){
     }
 
     const profile = await Profile.findOne({ user_id: user._id }).exec();
+
     if (!profile) {
       return res.status(404).send({ error: "Profile not found" });
     }
 
-    // Set isThirdPartyUser to false or remove googleId
-    profile.isThirdPartyUser = false;
-    await profile.save();
+    // Check if the user is google-only (no normal password)
+    const googleOnly = !user.password || user.password === "";
 
-    res.send({ result: "success" });
+    if (googleOnly) {
+      // If user was created solely via Google (no password), removing google means no login method left.
+      // Decide to delete user and profile entirely
+      await Profile.deleteOne({ user_id: user._id });
+      await User.deleteOne({ _id: user._id });
+
+      // Also clear session if this operation is done while logged in
+      if (req.session.user && req.session.user._id.toString() === user._id.toString()) {
+        req.session.destroy((err) => {
+          if (err) {
+            console.error("Error destroying session:", err);
+            // It's not critical if session can't be destroyed. Still return success.
+          }
+        });
+      }
+
+      return res.send({ result: "User and profile deleted because user was Google-only" });
+    } else {
+      // If user has normal credentials, just unlink the google account
+      user.googleId = undefined; // remove googleId
+      await user.save();
+
+      profile.isThirdPartyUser = false; 
+      await profile.save();
+
+      res.send({ result: "success" });
+    }
   } catch (error) {
     console.error("Error unlinking third party account:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 };
+
+
 
 module.exports = (app) => {
   app.get("/headline/:user?", isLoggedIn, getHeadline);

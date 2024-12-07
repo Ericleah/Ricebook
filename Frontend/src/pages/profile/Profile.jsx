@@ -11,9 +11,11 @@ import "./profile.scss";
 import AddAPhotoIcon from "@mui/icons-material/AddAPhoto";
 import { useSelector, useDispatch } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
+import { signInWithPopup } from "firebase/auth";
 import { login } from "../../actions/authActions";
 import styled from "styled-components";
 import { API_BASE_URL } from "../../config/config";
+import { auth, googleProvider } from "../../firebase"; // Import the initialized auth & provider
 
 // Styled Components for the buttons
 const BaseButton = styled.button`
@@ -273,17 +275,28 @@ const Profile = () => {
     setIsLinkingInProgress(true);
   
     try {
+      // Prompt user to sign in with Google
+      const result = await signInWithPopup(auth, googleProvider);
+      const googleUser = result.user;
+  
       const response = await fetch(`${API_BASE_URL}/linkThirdPartyUser`, {
         method: "POST",
-        credentials: "include", // Important for session cookies
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: currentUser.username }),
+        body: JSON.stringify({
+          displayName: googleUser.displayName,
+          email: googleUser.email,
+          photoURL: googleUser.photoURL,
+          uid: googleUser.uid,
+        }),
       });
   
       const data = await response.json();
   
       if (response.ok) {
         setIsAccountingLinked(true);
+        dispatch(login(data));
+        // Now the user can also login with google next time
       } else {
         console.error("Failed to link accounting:", data.error);
         setError(data.error || "Failed to link accounting. Please try again.");
@@ -307,19 +320,23 @@ const Profile = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          username: currentUser.username,
-          isThirdPartyUser: currentUser.isThirdPartyUser,
-        }),
+        body: JSON.stringify({ username: currentUser.username }),
       });
   
       const data = await response.json();
   
       if (response.ok) {
-        // If successful, update state or navigate away
-        setIsAccountingLinked(false);
-        // Example: navigate("/login") or show a success message
-        //window.location.href = "https://yourdomain.com/login";
+        // If user was google-only, they're now deleted, so redirect to login
+        // If user had normal login credentials, just linked googleId removed, can stay
+        console.log("Unlinking success:", data.result);
+        if (data.result.includes("deleted")) {
+          // If user and profile deleted
+          // redirect to login page
+          window.location.href = "/login";
+        } else {
+          // Just unlinked google account
+          setIsAccountingLinked(false);
+        }
       } else {
         console.error("Failed to unlink accounting:", data.error);
         setError(data.error || "Failed to unlink accounting. Please try again.");
@@ -331,7 +348,7 @@ const Profile = () => {
       setIsLinkingInProgress(false);
     }
   };
-
+  
   return (
     <div className="profile container mt-4">
       <Link to="/">

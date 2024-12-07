@@ -260,7 +260,6 @@ const Register = () => {
       };
 
       //dispatch(register(user));
-      navigate("/");
       try {
         const response = await fetch(
           `${API_BASE_URL}/register`,
@@ -277,7 +276,7 @@ const Register = () => {
         console.log("Register")
         const data = await response.json();
         if (response.ok) {
-          navigate("/"); // Redirect or update UI
+          navigate("/login");
         } else {
           // Handle errors
           console.error("Registration error:", data.error);

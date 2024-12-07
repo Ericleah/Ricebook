@@ -25,6 +25,7 @@ async function createArticle(req, res) {
       image: image,
       date: new Date(),
       comments: [],
+      customId: customId,
     });
 
     const savedArticle = await newArticle.save();
@@ -55,22 +56,39 @@ async function createArticle(req, res) {
 
 
 async function getArticles(req, res) {
-  const identifier = req.params.id; // Can be a post id or username
-  const loggedInUser = req.session.user.username;
+  const loggedInUser = req.session.user.username; // The user making the request
+  const usernameQuery = req.query.username || loggedInUser; // If no username provided, use the logged-in user
+  const page = parseInt(req.query.page) || 1;
+  const limit = 4; // Adjust as needed
+  const skip = (page - 1) * limit;
 
   try {
-    let articles;
-    if (identifier) {
-      if (!isNaN(identifier)) {
-        articles = await Article.find({ customId: identifier }).exec();
-      } else {
-        articles = await Article.find({ author: identifier }).exec();
-      }
-    } else {
-      articles = await Article.find({
-        /*  feed logic here */
-      }).exec();
+    // Find the user for the given usernameQuery
+    const user = await User.findOne({ username: usernameQuery }).exec();
+    if (!user) {
+      // If no user found with usernameQuery, return empty
+      return res.json({ articles: [], totalPages: 1 });
     }
+
+    // Find followed users of `user`
+    const followedUserIds = user.following || [];
+    const followedUsersDocs = await User.find({ _id: { $in: followedUserIds } }).exec();
+    const followedUsernames = followedUsersDocs.map((u) => u.username);
+
+    // Authors should include the requested user and their followed users
+    const authors = [usernameQuery, ...followedUsernames];
+
+    // Fetch articles from these authors, sorted by date desc, with pagination
+    const [articles, count] = await Promise.all([
+      Article.find({ author: { $in: authors } })
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      Article.countDocuments({ author: { $in: authors } }),
+    ]);
+
+    const totalPages = Math.ceil(count / limit);
 
     const response = articles.map((article) => ({
       id: article.customId,
@@ -78,14 +96,16 @@ async function getArticles(req, res) {
       text: article.text,
       comments: article.comments,
       date: article.date,
-      image:article.image
+      image: article.image,
     }));
 
-    res.json({ articles: response });
+    res.json({ articles: response, totalPages });
   } catch (error) {
+    console.error("Error fetching articles:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 }
+
 
 async function findAuthorIdByUsername(authorUsername) {
   try {
@@ -102,10 +122,14 @@ async function findAuthorIdByUsername(authorUsername) {
 }
 
 async function updateArticle(req, res) {
-  const commentId = req.body.commentId !== undefined ? parseInt(req.body.commentId) : undefined;
-  const { text } = req.body;
-  const articleId = req.params.id;
-  const loggedInUserId = req.session.user._id; // Ensure this is a MongoDB ObjectId
+  const { text, commentId } = req.body;
+  // Convert articleId to number
+  const articleId = parseInt(req.params.id, 10);
+  const loggedInUserId = req.session.user._id;
+
+  if (isNaN(articleId)) {
+    return res.status(400).send({ error: "Invalid article ID" });
+  }
 
   if (!text) {
     return res.status(400).send({ error: "Text content is required" });
@@ -118,34 +142,33 @@ async function updateArticle(req, res) {
       return res.status(404).send({ error: "Article not found" });
     }
 
-    // Find the author's ObjectId based on username
-    const authorObjectId = await findAuthorIdByUsername(article.author);
-    if (!authorObjectId) {
-      return res.status(400).send({ error: "Author not found" });
-    }
-
-    if (!authorObjectId.equals(loggedInUserId)) {
-      return res.status(403).send({ error: "Forbidden" });
-    }
-
+    // Check authorship only if editing article text
+    // If commentId is undefined, we are editing the article text
     if (commentId === undefined) {
-      // Update article text
+      // Editing the article text => must be article author
+      const authorObjectId = await findAuthorIdByUsername(article.author);
+      if (!authorObjectId || !authorObjectId.equals(loggedInUserId)) {
+        return res.status(403).send({ error: "Forbidden" });
+      }
       article.text = text;
     } else if (commentId === -1) {
-      // Add a new comment
-      const newComment = new Comment({
+      // Add a new comment => any logged-in user can comment
+      article.comments.push({
         body: text,
         author: loggedInUserId,
+        date: new Date(),
       });
-      article.comments.push(newComment);
     } else {
-      // Edit an existing comment
-      const comment = article.comments.find((c) => c.customId === commentId);
+      // Editing a comment => must be that comment's author
+      const parsedCommentId = parseInt(commentId, 10);
+      if (isNaN(parsedCommentId)) {
+        return res.status(400).send({ error: "Invalid comment ID" });
+      }
+
+      const comment = article.comments.find((c) => c.customId === parsedCommentId);
       if (!comment) {
         return res.status(404).send({ error: "Comment not found" });
       }
-
-      // Check if the current user is the author of the comment
       if (!comment.author.equals(loggedInUserId)) {
         return res.status(403).send({ error: "Forbidden" });
       }
@@ -153,12 +176,14 @@ async function updateArticle(req, res) {
     }
 
     await article.save();
+    // Return the article or a transformed version as needed
     res.status(200).json(article);
   } catch (error) {
     console.error("Error updating article:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 }
+
 
 
 module.exports = (app) => {

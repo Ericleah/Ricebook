@@ -129,7 +129,7 @@ const Share = () => {
           text: savedArticle.text,
           image: savedArticle.image,
           date: new Date(savedArticle.date).toISOString(),
-          customId: savedArticle.customId,
+          customId: posts[0] && posts[0].customId ? posts[0].customId + 1 : 1,
         };
         dispatch(addPost(newPost));
         clearInputText();

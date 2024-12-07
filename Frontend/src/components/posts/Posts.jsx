@@ -70,14 +70,13 @@ const Posts = () => {
           },
         }
       );
-
+  
       const data = await response.json();
-
-      console.log("data", data.articles.length);
-
+  
+      console.log("Fetched articles:", data.articles.length, "Total Pages:", data.totalPages);
+  
       dispatch(setPosts(data.articles));
-      //setTotalPages(data.articles.length); // Set the total pages (assuming the server sends this info)
-      setTotalPages(data.articles.length);
+      setTotalPages(data.totalPages);
     } catch (error) {
       console.error("Error fetching user posts:", error);
     }

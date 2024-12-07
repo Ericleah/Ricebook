@@ -100,7 +100,7 @@ const Post = ({ post, fetchCurrentUserPosts }) => {
       if (post.author === currentUser.username) {
         setIsUploading(true);
         const response = await fetch(
-          `${API_BASE_URL}/articles/${post.id}`, // Correct URL path
+          `${API_BASE_URL}/articles/${post.id}`, // Use 'post.id' instead of 'post.customId'
           {
             method: "PUT",
             credentials: "include",
@@ -112,6 +112,7 @@ const Post = ({ post, fetchCurrentUserPosts }) => {
             }),
           }
         );
+        
 
         if (!response.ok) {
           throw new Error("Failed to update the post.");

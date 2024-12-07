@@ -88,29 +88,13 @@ const Comments = ({ articleId }) => {
     }
   }, [articleId, posts, dispatch]);
   
-  const fetchJsonData = async (url) => {
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status} - ${response.statusText}`);
-    }
-
-    return await response.json();
-  };
-
   const handleSendClick = async () => {
     if (articleId === undefined) {
       console.error("Cannot send comment: articleId is undefined.");
       setError("Unable to send comment. Please try again.");
       return;
     }
-    const avatarData = await fetchJsonData(`${API_BASE_URL}/avatar/${currentUser.username}`);
+
     if (inputValue.trim() !== "") {
       const newComment = {
         // id: commentId, // Comment ID will be handled by backend
@@ -279,17 +263,15 @@ const Comments = ({ articleId }) => {
           <div className="info">
             <span>{comment.author}</span>
             {editingCommentId === comment.customId ? (
-              <>
-                <input
-                  type="text"
-                  value={editedCommentBody}
-                  onChange={(e) => setEditedCommentBody(e.target.value)}
-                  className="form-control mr-2"
-                  style={{ height: "30px", borderRadius: "20px" }}
-                />
-              </>
+              <input
+                type="text"
+                value={editedCommentBody}
+                onChange={(e) => setEditedCommentBody(e.target.value)}
+                className="form-control mr-2"
+                style={{ height: "30px", borderRadius: "20px" }}
+              />
             ) : (
-              <p>{comment.body}</p>
+        <p>{comment.body}</p>
             )}
           </div>
           <div className="actions">

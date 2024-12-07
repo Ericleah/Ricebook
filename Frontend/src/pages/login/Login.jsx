@@ -160,13 +160,12 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user; // Firebase user info
+      const user = result.user;
   
-      // Call backend to create/find user and set session
       const response = await fetch(`${API_BASE_URL}/auth/googleRegister`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // Important to include for session cookies
+        credentials: "include",
         body: JSON.stringify({
           displayName: user.displayName,
           email: user.email,
@@ -177,15 +176,18 @@ const Login = () => {
   
       const data = await response.json();
       if (response.ok) {
-        dispatch(login(data)); // Now data includes all user info from backend
+        dispatch(login(data));
         navigate("/");
       } else {
         console.error("Failed to finalize Google sign in:", data.error);
+        setLoginError(data.error || "Something went wrong after Google sign-in.");
       }
     } catch (error) {
       console.error("Error during Google sign-in:", error);
+      setLoginError("Google sign-in failed. Please try again.");
     }
   };
+  
   
 
   return (

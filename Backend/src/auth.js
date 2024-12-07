@@ -189,52 +189,107 @@ module.exports = {
       }
       next();
     });
-    app.post("/auth/googleRegister", async (req, res) => {
-      const { displayName, email, photoURL, uid } = req.body;
-    
-      try {
-        let user = await User.findOne({ googleId: uid });
-    
-        if (!user) {
-          // Create random info for new Google user
-          const dob = generateRandomDOB();
-          const phone = generateRandomPhone();
-          const zipcode = generateRandomZipcode();
-    
-          user = await User.create({
-            googleId: uid,
-            username: displayName,
-          });
-    
-          await Profile.create({
-            user_id: user._id,
-            username: displayName,
-            email: email || `user${Date.now()}@example.com`,
-            avatar: photoURL || "",
-            dob,
-            phone,
-            zipcode,
-          });
-        }
-    
-        // Set the session so isLoggedIn middleware works
-        req.session.user = user;
-    
-        // Return user data for frontend
-        res.send({
-          username: user.username,
-          email: email,
-          avatar: photoURL,
-          uid,
-          // add dob, phone, zipcode if you want to return them
-          // in that case, fetch them from the Profile model
-          // If you want them now:
-        });
-      } catch (error) {
-        console.error("Error in /auth/googleRegister:", error);
-        res.status(500).send({ error: "Internal server error" });
+// Assuming generateRandomDOB, generateRandomPhone, generateRandomZipcode, generateRandomPassword, generateValidUsername are defined or imported.
+
+app.post("/auth/googleRegister", async (req, res) => {
+  const { displayName, email, photoURL, uid } = req.body;
+
+  if (!displayName || !uid) {
+    return res.status(400).send({ error: "Missing required fields: displayName, uid" });
+  }
+
+  try {
+    // 1. Check if there's an existing user with the same username as displayName
+    let user = await User.findOne({ username: displayName }).exec();
+
+    if (user) {
+      // User with this username already exists
+      // If they don't have googleId, link them now
+      if (!user.googleId) {
+        user.googleId = uid;
+        await user.save();
       }
+
+      // Log them in
+      req.session.user = user;
+
+      // Fetch profile to return full data
+      const profile = await Profile.findOne({ user_id: user._id }).exec();
+
+      return res.send({
+        username: user.username,
+        email: profile?.email || email || `${Date.now()}@example.com`,
+        avatar: profile?.avatar || photoURL || "",
+        dob: profile?.dob || "",
+        phone: profile?.phone || "",
+        zipcode: profile?.zipcode || "",
+        uid,
+        googleId: user.googleId
+      });
+    }
+
+    // 2. If no user by that username, check if user by googleId exists
+    user = await User.findOne({ googleId: uid }).exec();
+    if (user) {
+      // If user found by googleId, just log them in
+      req.session.user = user;
+      const profile = await Profile.findOne({ user_id: user._id }).exec();
+      return res.send({
+        username: user.username,
+        email: profile?.email || email || `${Date.now()}@example.com`,
+        avatar: profile?.avatar || photoURL || "",
+        dob: profile?.dob || "",
+        phone: profile?.phone || "",
+        zipcode: profile?.zipcode || "",
+        uid,
+        googleId: user.googleId
+      });
+    }
+
+    // 3. If no user by username or googleId, create new user and profile with random data
+    const dob = generateRandomDOB();
+    const phone = generateRandomPhone();
+    const zipcode = generateRandomZipcode();
+
+    // We can use displayName as username directly since no conflict found by that name
+    const username = displayName;
+
+    const newUser = await User.create({
+      googleId: uid,
+      username: username,
     });
+
+    await Profile.create({
+      user_id: newUser._id,
+      username,
+      email: email || `user${Date.now()}@example.com`,
+      avatar: photoURL || "",
+      dob,
+      phone,
+      zipcode,
+    });
+
+    req.session.user = newUser;
+
+    const profile = await Profile.findOne({ user_id: newUser._id }).exec();
+
+    res.send({
+      username: newUser.username,
+      email: profile?.email,
+      avatar: profile?.avatar,
+      dob: profile?.dob,
+      phone: profile?.phone,
+      zipcode: profile?.zipcode,
+      uid,
+      googleId: newUser.googleId,
+    });
+  } catch (error) {
+    console.error("Error in /auth/googleRegister:", error);
+    res.status(500).send({ error: "Internal server error" });
+  }
+});
+
+    
     // Local Auth Routes
     app.post("/login", login);
     app.post("/register", register);

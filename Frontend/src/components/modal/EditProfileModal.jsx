@@ -114,7 +114,6 @@ const EditProfileModal = ({ isOpen, onRequestClose, user, onUpdate }) => {
         const zipcodeData = await fetchJsonData(`${API_BASE_URL}/zipcode/${username}`);
 
         setFormData({
-          username: username,
           email: emailData.email || "",
           phone: phoneData.phone || "",
           zipcode: zipcodeData.zipcode || "",
@@ -244,22 +243,6 @@ const EditProfileModal = ({ isOpen, onRequestClose, user, onUpdate }) => {
       </button>
       <h2>Edit Profile</h2>
       <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label htmlFor="username" className="form-label">
-            Username
-          </label>
-          <input
-            type="text"
-            className="form-control"
-            id="username"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            data-toggle="popover-username"
-            data-content={userNameError}
-            data-placement="top"
-          />
-        </div>
         <div className="mb-3">
           <label htmlFor="email" className="form-label">
             Email

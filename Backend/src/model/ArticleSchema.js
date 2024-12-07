@@ -3,9 +3,10 @@ const mongoose = require("mongoose");
 
 const commentSchema = new mongoose.Schema({
   customId: { type: Number, index: true },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: "user" }, // Reference to user model
+  author: { type: mongoose.Schema.Types.ObjectId, ref: "profile" }, // Reference to user model
   body: { type: String, required: true },
   date: { type: Date, default: Date.now },
+  avatar: { type: String }, // Add this field if not already present
 });
 
 commentSchema.pre("save", async function (next) {

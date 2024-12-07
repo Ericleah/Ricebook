@@ -4,6 +4,35 @@ const { isLoggedIn } = require("./auth");
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
 const { uploadImage, uploadAvatar } = require('./uploadCloudinary');
+const { Article } = require("./model/ArticleSchema"); // Adjust the path as needed
+//const Article = require("./model/Article");
+//const Comment = require("./model/Comment");
+
+/**
+ * Update all comments authored by the user with the new avatar.
+ * @param {ObjectId} userId - The user's ObjectId from the Profile collection.
+ * @param {string} newAvatarUrl - The new avatar URL to update in comments.
+ */
+
+const updateUserCommentsAvatar = async (userId, newAvatarUrl) => {
+  try {
+    const result = await Article.updateMany(
+      { "comments.author": userId },  // Match articles where at least one comment has the given userId as author
+      { $set: { "comments.$[elem].avatar": newAvatarUrl } }, // Set the avatar field
+      {
+        arrayFilters: [{ "elem.author": userId }], // Only update comments where author matches userId
+      }
+    );
+
+    console.log(
+      `Updated avatar in ${result.modifiedCount} articles for user ID ${userId}`
+    );
+  } catch (error) {
+    console.error("Error updating avatars in user comments:", error);
+    throw new Error("Failed to update user comments' avatars");
+  }
+};
+
 
 // Function to get a user's headline
 async function getHeadline(req, res) {
@@ -217,13 +246,22 @@ const putAvatar = async (req, res) => {
       { new: true }
     );
 
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: userId },
+      { avatar: avatarUrl },
+      { new: true }
+    );
+
     if (!updatedProfile) {
       console.error("Profile not found for user:", userId);
       return res.status(404).send({ error: "Profile not found" });
     }
+    await updateUserCommentsAvatar(updatedProfile._id, avatarUrl);
 
+    console.log("Avatar updated in Profile and propagated to comments");
     console.log("User avatar updated successfully:", updatedProfile.avatar);
-    res.status(200).send({ avatar: updatedProfile.avatar });
+
+    res.status(200).send({ avatar: updatedProfile.avatar,});
   } catch (error) {
     console.error("Error updating avatar:", error);
     res.status(500).send({ error: "Failed to update avatar." });

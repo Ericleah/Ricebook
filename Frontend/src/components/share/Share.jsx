@@ -1,8 +1,7 @@
-// Share.jsx
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { selectUser } from "../../reducer/authReducer";
-import { addPost } from "../../actions/postsActions";
+import { addPost, setPosts } from "../../actions/postsActions";
 import { selectPosts } from "../../reducer/postsReducer";
 import { API_BASE_URL } from "../../config/config";
 import styled from "styled-components";
@@ -26,20 +25,19 @@ const BaseButton = styled.button`
 
 const CancelButton = styled(BaseButton)`
   color: black;
-  background-color: #e3e0e0; // Mimicking Bootstrap btn-danger color
-  margin-right: 5px; // Add some margin to the right of the Cancel button
+  background-color: #e3e0e0;
 
   &:hover {
-    background-color: #dedada; // Darker shade for hover effect
+    background-color: #dedada;
   }
 `;
 
 const PostButton = styled(BaseButton)`
-  background-color: #938eef; // Mimicking Bootstrap btn-primary color
+  background-color: #938eef;
   color: white;
 
   &:hover {
-    background-color: #7a75d6; // Darker shade for hover effect
+    background-color: #7a75d6;
   }
 `;
 
@@ -49,8 +47,8 @@ const Share = () => {
   const posts = useSelector(selectPosts);
 
   const [inputText, setInputText] = useState("");
-  const [selectedImage, setSelectedImage] = useState(null); // State for the selected image
-  const [uploadedFile, setUploadedFile] = useState(null); // State to store the uploaded file
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
@@ -69,25 +67,43 @@ const Share = () => {
     const file = e.target.files[0];
 
     if (file) {
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+      const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
       if (!allowedTypes.includes(file.type)) {
-        setError('Invalid file type. Only JPEG and PNG are allowed.');
+        setError("Invalid file type. Only JPEG and PNG are allowed.");
         return;
       }
 
-      // Validate file size (e.g., max 5MB)
-      if (file.size > 5 * 1024 * 1024) { // 5 MB
-        setError('File size exceeds 5 MB.');
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File size exceeds 5 MB.");
         return;
       }
 
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result);
-        setUploadedFile(file); // Store the File object
+        setUploadedFile(file);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const fetchCurrentUserPosts = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/articles?username=${currentUser.username}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+      dispatch(setPosts(data.articles)); // Update posts in Redux store
+    } catch (error) {
+      console.error("Error fetching user posts:", error);
     }
   };
 
@@ -99,12 +115,11 @@ const Share = () => {
 
     const formData = new FormData();
     formData.append("text", inputText);
-    console.log("text", inputText);
     if (uploadedFile) {
-      formData.append("image", uploadedFile); // Use the stored File object
+      formData.append("image", uploadedFile);
     }
 
-    setIsUploading(true); // Start uploading
+    setIsUploading(true);
 
     fetch(`${API_BASE_URL}/article`, {
       method: "POST",
@@ -113,7 +128,6 @@ const Share = () => {
     })
       .then((response) => {
         if (!response.ok) {
-          // Attempt to extract error message from response
           return response.json().then((data) => {
             const errorMsg = data.error || "Failed to create article.";
             throw new Error(errorMsg);
@@ -133,13 +147,16 @@ const Share = () => {
         };
         dispatch(addPost(newPost));
         clearInputText();
+
+        // Fetch updated posts
+        fetchCurrentUserPosts();
       })
       .catch((error) => {
         console.error("Error creating new article:", error);
         setError(error.message);
       })
       .finally(() => {
-        setIsUploading(false); // End uploading
+        setIsUploading(false);
       });
   };
 
@@ -153,7 +170,6 @@ const Share = () => {
             placeholder={`What's on your mind, ${currentUser.username}?`}
             value={inputText}
             onChange={handleInputChange}
-            style={{ width: "400px" }} // Adjust the width as needed
           />
         </div>
         <hr />

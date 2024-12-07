@@ -102,6 +102,7 @@ const Comments = ({ articleId }) => {
         body: inputValue,
         avatar: currentUser.avatar,
       };
+      console.log("avatar", currentUser.avatar);
 
       try {
         setIsUploading(true);
@@ -115,6 +116,7 @@ const Comments = ({ articleId }) => {
             // Adjust the payload to match backend expectations
             text: newComment.body, // Assuming you're adding a comment's body as text
             commentId: -1, // Use -1 to indicate a new comment
+            avatar: currentUser.avatar,
           }),
         });
 
@@ -204,6 +206,7 @@ const Comments = ({ articleId }) => {
             body: JSON.stringify({
               text: editedCommentBody,
               commentId: commentId, // Pass the commentId to indicate editing
+              avatar: currentUser.avatar,
             }),
           });
 

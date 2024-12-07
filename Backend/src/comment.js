@@ -1,25 +1,28 @@
-// routes/comments.js
 const express = require("express");
 const router = express.Router();
 const { Article } = require("./model/ArticleSchema"); // Adjust path as needed
+const User = require("./model/UserSchema"); // Import the User model
 const { isLoggedIn } = require("./auth"); // Authentication middleware
+const Profile = require("./model/ProfileSchema");
 
 async function getCommentAuthor(req, res) {
   const { articleId, commentId } = req.params;
 
   try {
-    const article = await Article.findOne({ customId: articleId }).exec();
+    const article = await Article.findOne({ customId: parseInt(articleId, 10) }).exec();
     if (!article) {
       return res.status(404).send({ error: "Article not found" });
     }
 
-    const comment = article.comments.find((c) => c.customId === parseInt(commentId));
+    const comment = article.comments.find((c) => c.customId === parseInt(commentId, 10));
     if (!comment) {
       return res.status(404).send({ error: "Comment not found" });
     }
-
-    // Assuming you have a User model to fetch username by ObjectId
-    const user = await User.findById(comment.author).exec();
+    
+    console.log("Comment author:", comment.author);
+    // Fetch the comment author's details
+    const user = await Profile.findById(comment.author).exec();
+    console.log("User:", user);
     if (!user) {
       return res.status(404).send({ error: "User not found" });
     }
@@ -32,7 +35,6 @@ async function getCommentAuthor(req, res) {
 }
 
 // Define the route
-
 module.exports = (app) => {
-    app.get("/getCommentAuthor/:articleId/:commentId", isLoggedIn, getCommentAuthor);
-}
+  app.get("/getCommentAuthor/:articleId/:commentId", isLoggedIn, getCommentAuthor);
+};

@@ -3,15 +3,15 @@ const mongoose = require("mongoose");
 const { Article, Comment } = require("./model/ArticleSchema");
 const User = require("./model/UserSchema");
 const { uploadImage } = require('./uploadCloudinary');
+const Profile = require("./model/ProfileSchema");
 
 
-//const Article = require("./model/Article");
-//const Comment = require("./model/Comment");
 
 async function createArticle(req, res) {
   const {text} = req.body;
   const loggedInUser = req.session.user.username;
   const image = req.file ? req.file.path : null;
+  const customId = Math.floor(Math.random() * 1000000);
 
   // Validate the input
   if (!text) {
@@ -122,10 +122,10 @@ async function findAuthorIdByUsername(authorUsername) {
 }
 
 async function updateArticle(req, res) {
-  const { text, commentId } = req.body;
-  // Convert articleId to number
+  const { text, commentId, avatar } = req.body;
   const articleId = parseInt(req.params.id, 10);
-  const loggedInUserId = req.session.user._id;
+  const loggedInUsername = req.session.user.username; // Use username instead of _id
+  const userAvatar = avatar;
 
   if (isNaN(articleId)) {
     return res.status(400).send({ error: "Invalid article ID" });
@@ -141,13 +141,18 @@ async function updateArticle(req, res) {
     if (!article) {
       return res.status(404).send({ error: "Article not found" });
     }
+    // Resolve username to ObjectId
+    const loggedInUserProfile = await Profile.findOne({ username: loggedInUsername });
+    if (!loggedInUserProfile) {
+      return res.status(404).send({ error: "User profile not found" });
+    }
+    const loggedInUserId = loggedInUserProfile._id; // Convert username to ObjectId
 
     // Check authorship only if editing article text
-    // If commentId is undefined, we are editing the article text
     if (commentId === undefined) {
       // Editing the article text => must be article author
-      const authorObjectId = await findAuthorIdByUsername(article.author);
-      if (!authorObjectId || !authorObjectId.equals(loggedInUserId)) {
+      console.log("Editing article text");
+      if (article.author !== loggedInUsername) {
         return res.status(403).send({ error: "Forbidden" });
       }
       article.text = text;
@@ -155,7 +160,8 @@ async function updateArticle(req, res) {
       // Add a new comment => any logged-in user can comment
       article.comments.push({
         body: text,
-        author: loggedInUserId,
+        author: loggedInUserId, // Use ObjectId here
+        avatar: userAvatar, // Include avatar if available
         date: new Date(),
       });
     } else {
@@ -169,22 +175,46 @@ async function updateArticle(req, res) {
       if (!comment) {
         return res.status(404).send({ error: "Comment not found" });
       }
-      if (!comment.author.equals(loggedInUserId)) {
+      
+      console.log("loggedInUsername:", loggedInUsername); 
+      console.log("comment.author:", comment.author);
+      const commentAuthorProfile = await Profile.findById(comment.author);
+      const commentAuthorUsername = commentAuthorProfile.username;
+      if (commentAuthorUsername !== loggedInUsername) {
         return res.status(403).send({ error: "Forbidden" });
       }
       comment.body = text;
     }
 
     await article.save();
-    // Return the article or a transformed version as needed
-    res.status(200).json(article);
+
+    await article.populate([
+      { path: "author", select: "username avatar" },
+      { path: "comments.author", select: "username avatar" },
+    ]);
+
+    const mappedArticle = {
+      id: article.customId,
+      author: article.author.username,
+      avatar: article.author.avatar,
+      text: article.text,
+      date: article.date,
+      image: article.image,
+      comments: article.comments.map((c) => ({
+        customId: c.customId,
+        author: c.author.username,
+        avatar: c.author.avatar,
+        body: c.body,
+        date: c.date,
+      })),
+    };
+
+    res.status(200).json(mappedArticle);
   } catch (error) {
     console.error("Error updating article:", error);
     res.status(500).send({ error: "Internal server error" });
   }
 }
-
-
 
 module.exports = (app) => {
   app.post("/article", isLoggedIn, uploadImage('image'), createArticle);

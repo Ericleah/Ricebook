@@ -50,7 +50,9 @@ const storage = new CloudinaryStorage({
     params: {
       folder: 'avatars', // Folder name in Cloudinary
       allowed_formats: ['jpg', 'jpeg', 'png'],
-      transformation: [{ width: 150, height: 150, crop: 'limit' }], // Optional transformations
+      transformation: [
+        { quality: "auto", fetch_format: "auto" }
+      ]    
     },
   });
 // multer parses multipart form data. 

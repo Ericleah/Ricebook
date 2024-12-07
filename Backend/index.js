@@ -12,7 +12,6 @@ const session = require("express-session");
 const cors = require("cors");
 const morgan = require("morgan"); // HTTP request logger
 
-
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -20,13 +19,15 @@ app.use(morgan("dev")); // Log all incoming requests
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 // Configure session middleware
+app.set('trust proxy', 1);
+
 app.use(
   session({
     secret: "rice university",
-    resave: false,
+    resave: true,
     saveUninitialized: false,
     cookie: { httpOnly: true, 
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
     }, 
   })
 );
